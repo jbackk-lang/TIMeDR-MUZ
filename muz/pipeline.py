@@ -29,7 +29,7 @@ from .mini_ai.policy import propose as mini_ai_propose
 REPO_DIR = PKG_DIR.parent
 PREREG = REPO_DIR / "prereg"
 THRESHOLDS = PREREG / "muz_thresholds_v0.2.json"
-DECISION = PREREG / "muz_decision_v0.1.json"
+DECISION = PREREG / "muz_decision_v0.2.json"
 
 
 class FrozenFileChanged(RuntimeError):
@@ -89,9 +89,12 @@ def prepare(inputs, mapping_path, cpi_path=None, contracts_path=None, salt_path=
         b_phases = phases.budget_phases(bmeta, calib, th, hard)
         report = meta.validate_budget_meta(bmeta, [phases.NAMES[p] for p in b_phases]) if len(bmeta) >= 3 else None
     validator_sha = sha256_obj(report.format_report()) if report is not None else None
+    from .mini_ai.train import income_month
+    income = income_month(records)
     return {"th": th, "th_sha": th_sha, "vendor_sha": vendor_sha, "records": records, "n_raw": n_raw, "cpi": cpi,
             "streams": streams, "monthly": monthly, "frames": frames, "res": res, "s_phases": s_phases,
             "bmeta": bmeta, "calib": calib, "hard": hard, "b_phases": b_phases, "validator_report": report,
+            "income_month_gr": income,
             "validator_sha": validator_sha,
             "inputs": {Path(p).name: sha256_file(p) for p in inputs},
             "mapping_sha256": sha256_file(mapping_path) if mapping_path else None,
@@ -114,6 +117,7 @@ def run(inputs, mapping_path, out_dir, cpi_path=None, contracts_path=None, salt_
                   hashes={"progi": ctx["th_sha"], "vendor_lock": ctx["vendor_sha"], "wersja_muz": __version__,
                           "raport_meta_validator": ctx["validator_sha"] or "brak (za malo miesiecy)"},
                   n_raw=ctx["n_raw"], n_records=len(ctx["records"]))
+    text += shadow_section(ctx, REPO_DIR / "modele")
     if ctx["validator_report"] is not None:
         text += "\n## Raport walidatora META (TIMDR-Math-Formalism)\n\n```text\n" + ctx["validator_report"].format_report() + "\n```\n"
     (out / "raport_etap0.md").write_text(text, encoding="utf-8")
@@ -208,7 +212,7 @@ def run_stream(stream, frames, *, ctx, dec, dec_sha, profile, today: date, model
         envs.append(e_phase)
         cpi_m = (ctx["cpi"] or {}).get(frames[-1].month)
         x = build_features(frames, ps["phase"], stream.contract, b_last.state if b_last else None,
-                           b_last.M if b_last else None, cpi_m)
+                           b_last.M if b_last else None, cpi_m, ctx.get("income_month_gr"))
         proposal = mini_ai_propose(stream_id=stream.stream_id, x=x, frame=frames[-1], phase=ps["phase"],
                                    contract=stream.contract, cfg=dec, policy_sha256=dec_sha, model=model,
                                    weights_sha256=weights_sha, background=background)
@@ -258,3 +262,49 @@ def propose(inputs, mapping_path, out_dir, *, today: date, profile_path=None, cp
                 audit.append(log, "odrzucone", {"stream_id": s.stream_id, "reason": r["reason"],
                                                 "claim": (r.get("claim") or {}).get("verdict")})
     return counts
+
+
+def shadow_section(ctx, models_dir: Path) -> str:
+    """Tryb cienia: co zaproponowalby mini-AI uczony na pakietach syntetycznych. Nic z tego nie trafia do planow."""
+    active = models_dir / "aktywny.json"
+    if not active.exists():
+        return ""
+    from .ai_core.registry import ModelRegistry, NotSupported
+    from .mini_ai.mlp import MLP
+    cfg = json.loads(active.read_text(encoding="utf-8"))
+    weights = models_dir / cfg["wagi"]
+    try:
+        sha = ModelRegistry(models_dir / "rejestr.json").require_supported(weights, allow_synthetic=True)
+    except NotSupported as exc:
+        return f"\n## Cień mini-AI\n\nModel niedostępny: {exc}\n"
+    model = MLP.load(weights, expected_sha256=sha)
+    dec, dec_sha = load_frozen(DECISION)
+    with no_network():
+        rows = _shadow_rows(ctx, model, sha, dec, dec_sha)
+    head = ("\n## Cień mini-AI (model syntetyczny, tylko podgląd)\n\n"
+            "Model uczony na pakietach budżetów syntetycznych (GUS 2024). Pokazuje, co by zaproponował; nie tworzy planów "
+            "i nie wpływa na decyzje, dopóki nie przejdzie testu P2 na Twoich decyzjach. "
+            f"Wagi: {weights.name}, sha256 {sha[:12]}….\n\n")
+    if not rows:
+        return head + "Brak strumieni poza fazą stabilną.\n"
+    return head + "| Kontrahent | Faza | Reguły | mini-AI | Pewność |\n| --- | --- | --- | --- | --- |\n" + "\n".join(rows) + "\n"
+
+
+def _shadow_rows(ctx, model, sha, dec, dec_sha) -> list[str]:
+    rows = []
+    for s in ctx["monthly"]:
+        fs = ctx["frames"][s.stream_id]
+        ps = phases.stream_phase_state(fs, ctx["th"])
+        if ps["phase"] == "stabilna":
+            continue
+        b = next((b for b in reversed(ctx["bmeta"]) if b.month <= fs[-1].month), None)
+        x = build_features(fs, ps["phase"], s.contract, b.state if b else None, b.M if b else None,
+                           (ctx["cpi"] or {}).get(fs[-1].month), ctx["income_month_gr"])
+        prop = mini_ai_propose(stream_id=s.stream_id, x=x, frame=fs[-1], phase=ps["phase"], contract=s.contract,
+                               cfg=dec, policy_sha256=dec_sha, model=model, weights_sha256=sha)
+        rule = mini_ai_propose(stream_id=s.stream_id, x=x, frame=fs[-1], phase=ps["phase"], contract=s.contract,
+                               cfg=dec, policy_sha256=dec_sha)
+        conf = f"{prop['confidence']:.2f}".replace(".", ",")
+        note = " (niepewne)" if prop["abstained"] else ""
+        rows.append(f"| {s.counterparty} | {ps['phase']} | {rule['action']} | {prop['action']}{note} | {conf} |")
+    return rows

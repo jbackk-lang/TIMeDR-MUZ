@@ -18,6 +18,14 @@ python -m muz verify --log wyniki/audit.jsonl
 
 Raport: `wyniki/raport_etap0.md`. Dane użytkownika (`*.csv`, `mapowanie.json`, `wyniki/`, `.muz_salt`) są w `.gitignore`.
 
+## Uczenie mini-AI na pakietach budżetów
+
+```powershell
+python -m muz train
+```
+
+Generuje 600 syntetycznych budżetów gospodarstw domowych (kwintyle dochodu GUS 2024), uczy mini-AI jawnej reguły decyzji z `prereg/muz_decision_v0.2.json` i rejestruje model w `modele/` (trwa kilka minut). Model działa tylko w trybie cienia: raport pokazuje, co by zaproponował, ale plany nadal tworzą reguły, dopóki model nie przejdzie testu P2 na Twoich decyzjach. Szczegóły i wyniki: [docs/IMPLEMENTACJA.md, sekcja 11](docs/IMPLEMENTACJA.md#11-pakiety-budżetów-syntetycznych-i-uczenie-mini-ai).
+
 ## Testy
 
 ```powershell

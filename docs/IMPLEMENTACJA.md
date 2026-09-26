@@ -68,7 +68,7 @@ class Executor(Protocol):
 
 **Przebieg jednego strumienia** (`muz/pipeline.py::run_stream`): `Stream` → `SignalFrame` → `MetaState` → `PhaseState` → cechy → `ActionProposal` → `VerifiedClaim` → `ActionPlan`. Wszystko od sygnałów do weryfikacji działa pod `no_network()`, a każdy komunikat wskazuje rodzica. Plan powstaje tylko z twierdzenia SUPPORTED i akcji innej niż „zostawić”.
 
-**mini-MLP** (`muz/mini_ai/mlp.py`): 40 → 32 → 16 → 4, ReLU, softmax, Adam, L2, skalowanie temperatury, ważność permutacyjna, zapis `.npz` z hashem. Regresja logistyczna (baseline z dokumentu) to ta sama klasa z `sizes=(40, 4)`. Warianty CNN 1D i TinyTransformer nie są w prototypie; dokument traktuje je jako badawcze.
+**mini-MLP** (`muz/mini_ai/mlp.py`): 42 → 32 → 16 → 4 (od decyzji v0.2: 40 cech z dokumentu + udział strumienia w dochodzie + roczny koszt podwyżki względem dochodu), ReLU, softmax, Adam, L2, skalowanie temperatury, ważność permutacyjna, zapis `.npz` z hashem. Regresja logistyczna (baseline z dokumentu) to ta sama klasa z `sizes=(42, 4)`. Warianty CNN 1D i TinyTransformer nie są w prototypie; dokument traktuje je jako badawcze.
 
 **Adapter** (`muz/adapter`): CSV z bankowości (UTF-8/CP1250, separator rozpoznawany, pomijanie wierszy przed nagłówkiem, przecinek dziesiętny, kwoty w groszach), MT940 (`:61:`, `:86:` z podpolami `~20–25`, `~32–33`, `~38`), NBP (tabela A, kurs z dnia transakcji, do 7 dni wstecz), GUS (plik CSV albo zapytanie BDL pod `bdl.stat.gov.pl`; identyfikatora zmiennej prototyp nie zgaduje), umowy (tylko pola potwierdzone przez użytkownika). IBAN jest zapisywany jako hash z lokalną solą.
 
@@ -84,7 +84,7 @@ class Executor(Protocol):
 8. **Wykonanie** — wykonawca sprawdza podpis, hash planu, poziom i `allowed_hosts`.
 9. **Pokwitowanie** — `ExecutionReceipt` z hashami dowodów trafia do dziennika.
 
-CLI: `run` (etap 0, raport), `propose` (kolejka planów), `keygen`, `setpin`, `approve`, `execute`, `verify`.
+CLI: `run` (etap 0, raport), `propose` (kolejka planów), `keygen`, `setpin`, `approve`, `execute`, `verify`, `train` (uczenie mini-AI na pakietach budżetów, sekcja 11).
 
 ## 5. Testy
 
@@ -93,11 +93,12 @@ CLI: `run` (etap 0, raport), `propose` (kolejka planów), `keygen`, `setpin`, `a
 | `test_protocol.py` | zamrożone pliki (zmiana progu → odmowa), zmieniony plik wendorowany → odmowa, deterministyczny odcisk prerejestracji, `run_controls` (kontrola pozytywna i negatywna), brak kontroli nigdy nie przechodzi, `run_test` (INCONCLUSIVE / SUPPORTED / NOT_SUPPORTED), Bonferroni, regresja P1: sygnał lepszy od baseline → SUPPORTED, sygnał równy baseline → NOT_SUPPORTED, kierunek przeciwny nie przechodzi, reguła wyboru modelu |
 | `test_adapter.py` | CP1250, preambuła, przecinek dziesiętny, hash IBAN, normalizacja kontrahentów, deduplikacja, strumienie, MT940, umowy potwierdzone, NBP z weekendem, GUS tylko przez dozwolony host |
 | `test_signals_meta_phases.py` | defekt przy podwyżce, anomalia przy podwójnym rachunku, rezonans M przy indeksacji, przyczynowość (przyszłość nie zmienia przeszłości), zakresy META, J z CPI, histereza, kalibracja (krótka historia, zapadnięty percentyl, tylko pierwsza połowa), twarda reguła salda, skręt |
-| `test_mini_ai.py` | 40 cech, MLP uczy się i zapis/odczyt z hashem, regresja logistyczna, ważność permutacyjna, faza stabilna bez propozycji, polityka regułowa, wstrzymanie < 0,6, bramka fazy, rejestr ładuje tylko wagi SUPPORTED |
+| `test_mini_ai.py` | 42 cechy, MLP uczy się i zapis/odczyt z hashem, regresja logistyczna, ważność permutacyjna, faza stabilna bez propozycji, polityka regułowa, wstrzymanie < 0,6, bramka fazy, rejestr ładuje tylko wagi SUPPORTED |
 | `test_ai_core_claims.py` | SUPPORTED z dowodami, stare dane → INCONCLUSIVE, zmiana uzasadniona → REJECTED, „anulować” bez okresu wypowiedzenia → INCONCLUSIVE, bramka parafrazy |
 | `test_executor.py` | wektor RFC 8032 i zgodność z `cryptography`, plan tylko z SUPPORTED, podpis i manipulacja treścią, wygaśnięcie po 15 minutach, odrzucenie, PIN dla L2, ICS bez zatwierdzenia, PDF i .eml, standard QR ZBP (także przykład z rekomendacji), QR jako L3, formularz: podgląd bez wysyłki, wysyłka po zatwierdzeniu, host spoza listy |
 | `test_security.py` | brak sieci, `check_host`, dziennik wykrywa zmianę i usunięcie wpisu, AES-256-GCM i manipulacja szyfrogramem |
 | `test_messages.py` | 10 schematów, koperta, rodzice, manipulacja treścią, nieznana wersja |
+| `test_sim_train.py` | udziały GUS sumują się do 100, generator deterministyczny, dochód rośnie z kwintylem, istotność podwyżki zależy od dochodu, reguły nauczyciela wg kategorii, 42 cechy bez fazy stabilnej, rejestracja z flagą `synthetic` i odmowa użycia do planów, sekcja cienia w raporcie |
 | `test_pipeline_e2e.py` | raport etapu 0 i dziennik; pełny przepływ do pokwitowania na strumieniu z podwyżką 89 → 119 zł |
 
 Wszystkie testy działają na danych syntetycznych (`tests/synth.py`). Test P1 na danych syntetycznych sprawdza mechanikę testu, a nie tezę, że sygnały TIMDR pomagają w finansach. Tę tezę rozstrzyga dopiero bramka P1 na historii użytkownika.
@@ -151,3 +152,21 @@ Dokument nie podaje tych wartości; są zamrożone w `prereg/` i wymagają pre-r
 ## 10. Bez technologii Meta
 
 Zależności: NumPy (wymagane), `cryptography`, `reportlab`, `segno`, `playwright`, `pytest` (opcjonalne). Nie ma PyTorch, LLaMA, ONNX, FAISS, React, GraphQL, Zstandard ani RocksDB. Magazyn danych to pliki szyfrowane i JSONL, bez RocksDB.
+
+## 11. Pakiety budżetów syntetycznych i uczenie mini-AI
+
+Na etapie 0 nie ma etykiet (decyzji użytkownika), więc mini-AI uczy się na **pakietach budżetów**: syntetycznych gospodarstwach domowych zbudowanych na danych GUS, z jawnym nauczycielem zamrożonym w `prereg/muz_decision_v0.2.json`.
+
+**Generator** (`muz/sim/generator.py`, dane w `muz/sim/gus_bgd.py`). Źródło: GUS, Budżety gospodarstw domowych 2024 — dochód rozporządzalny i wydatki na osobę w kwintylach (Q1 1151/1302 zł … Q5 6071/3012 zł), struktura wydatków COICOP, udział żywności i mieszkania malejący z dochodem (Q1 50,7%, Q5 36,9%). Pakiet = kwintyl, liczba osób (1–4), 32 miesiące rekordów LSF (wynagrodzenie, czynsz, energia, telekom, media, subskrypcje, ubezpieczenie, kredyt, zakupy spożywcze jako szum) i potwierdzone umowy. Zmiany cen powstają przez zdarzenia: indeksacja styczniowa o CPI GUS + szum, podwyżki dostawcy 10–40%, koniec promocji, podwójny rachunek za energię. 40% umów (poza czynszem i kredytem — te zawsze) jest na czas nieokreślony. Pakiet jest deterministyczny dla ziarna.
+
+**Nauczyciel** (`muz/sim/teacher.py`) używa tylko tego, co widzi model: kwota teraz i 12 miesięcy temu, CPI r/r, umowa, dochód. „Zostawić”, jeśli kategoria jest nienegocjowalna (czynsz, inne) albo podwyżka nie jest jednocześnie powyżej CPI + 5 pp i istotna (roczny koszt podwyżki ≥ 3% miesięcznego dochodu). Inaczej: brak wcześniejszych negocjacji albo kredyt → „negocjować”; subskrypcja → „anulować”; telekom, media, energia, ubezpieczenie → „zmienić”. Ta sama podwyżka jest więc istotna w Q1 i nieistotna w Q5.
+
+**Uczenie** (`python -m muz train`, `muz/mini_ai/train.py`). Próbki to miesiące poza fazą stabilną (od 13. miesiąca), 42 cechy. Podział 70/15/15 po gospodarstwach (test na innych gospodarstwach niż trening). Kontrolki: pozytywna (model uczy się podłożonej reguły „defekt” ≥ 0,95) i negatywna (na przetasowanych etykietach nie przekracza klasy większościowej + 0,02). MLP i regresja logistyczna, wybór po log-loss na walidacji z marginesem 0,05, test permutacyjny (200 permutacji). Werdykt wydaje `TIMDRProtocol`; węzeł w `modele/rejestr.json` ma `synthetic: true`.
+
+**Wynik (600 pakietów, ziarno 0):** wybrany MLP (log-loss walidacji 0,020 vs 0,073), trafność na teście 0,993 przy klasie większościowej 0,747 i polityce regułowej 0,424, p = 0,005 (minimum przy 200 permutacjach), trafność 0,987–1,0 w każdym kwintylu, „anulować” 50/51. Werdykt SUPPORTED (syntetyczny). Karta modelu: `modele/mini_ai_syntetyczny_v0.2/karta.json`.
+
+**Skrót wykryty poza rozkładem.** Pierwsza wersja generatora dawała umowy bez daty końca tylko dla czynszu i kredytu. Model miał 99,6% na teście syntetycznym, ale na przykładowym wyciągu (`dane/przyklad_wyciag_30mies.csv`, umowy testowe bez daty końca) zgadzał się z nauczycielem tylko w 18 z 31 próbek: nauczył się „brak daty końca → zostawić”. Po dodaniu umów na czas nieokreślony we wszystkich kategoriach zgodność wynosi 31/31. Test regresyjny: `test_generator_has_indefinite_contracts_outside_rent`.
+
+**Tryb cienia.** Model z flagą `synthetic` ładuje się tylko przez `require_supported(..., allow_synthetic=True)`. Raport etapu 0 ma sekcję „Cień mini-AI”, w której obok polityki regułowej widać, co zaproponowałby model. Plany wykonania nadal tworzy polityka regułowa; bez `allow_synthetic` rejestr zwraca `INCONCLUSIVE_SYNTHETIC_ONLY`.
+
+**Czego to nie dowodzi.** Model odtwarza jawną regułę nauczyciela na danych, które sami wygenerowaliśmy. Nie jest to dowód, że jego decyzje są dobre dla prawdziwego budżetu. Do tworzenia planów potrzebny jest test P2 na decyzjach użytkownika.

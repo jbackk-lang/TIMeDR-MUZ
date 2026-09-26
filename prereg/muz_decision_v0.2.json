@@ -1,0 +1,93 @@
+{
+  "version": "0.2",
+  "note": "Warstwa decyzyjna v0.2. Zmiany wzgledem v0.1: 42 cechy (doszla waga kosztu wzgledem dochodu), nauczyciel syntetyczny i pakiety budzetow do uczenia mini-AI. Model uczony na pakietach jest oznaczany jako SYNTETYCZNY i dziala tylko w trybie cienia, dopoki nie przejdzie P2 na decyzjach uzytkownika.",
+  "actions": [
+    "anulowac",
+    "negocjowac",
+    "zmienic",
+    "zostawic"
+  ],
+  "allowed_by_phase": {
+    "stabilna": [
+      "zostawic"
+    ],
+    "przejsciowa": [
+      "negocjowac",
+      "zmienic",
+      "zostawic"
+    ],
+    "krytyczna": [
+      "anulowac",
+      "negocjowac",
+      "zmienic",
+      "zostawic"
+    ]
+  },
+  "abstain_below": 0.6,
+  "rule_policy": {
+    "note": "Polityka regulowa na start (brak etykiet). Prototyp; wymaga pre-rejestracji P2 przed porownaniem z MLP.",
+    "przejsciowa": "negocjowac gdy defekt albo baseline_cpi, inaczej zostawic",
+    "krytyczna": "anulowac gdy kategoria=subskrypcja i negocjacje>=1; zmienic gdy negocjacje>=1; inaczej negocjowac"
+  },
+  "mlp": {
+    "sizes": [
+      42,
+      32,
+      16,
+      4
+    ],
+    "epochs": 300,
+    "lr": 0.01,
+    "l2": 0.0001,
+    "batch": 32,
+    "seed": 0
+  },
+  "logistic": {
+    "sizes": [
+      42,
+      4
+    ]
+  },
+  "model_selection_logloss_margin": 0.05,
+  "min_labels_for_model": 50,
+  "top_features": 3,
+  "teacher": {
+    "note": "Nauczyciel syntetyczny: jawne reguly etykietujace pakiety budzetow. Model uczony na nich odtwarza te reguly, nie wiedze o rzeczywistych decyzjach.",
+    "cpi_margin": 0.05,
+    "materiality_annual_share_of_monthly_income": 0.03,
+    "not_negotiable": [
+      "czynsz",
+      "inne"
+    ],
+    "switchable": [
+      "telekom",
+      "media",
+      "energia",
+      "ubezpieczenie"
+    ],
+    "cancellable": [
+      "subskrypcja"
+    ],
+    "rules": [
+      "zostawic: brak podwyzki ponad CPI + margines albo koszt podwyzki < prog istotnosci (3% miesiecznego dochodu rocznie)",
+      "zostawic: kategoria nienegocjowalna (czynsz, inne)",
+      "negocjowac: pierwsza istotna podwyzka (0 wczesniejszych negocjacji) albo kredyt",
+      "anulowac: subskrypcja po nieudanej negocjacji (negocjacje >= 1)",
+      "zmienic: telekom, media, energia, ubezpieczenie po nieudanej negocjacji"
+    ]
+  },
+  "training": {
+    "packages": 600,
+    "months": 32,
+    "start": "2024-01",
+    "split": [
+      0.7,
+      0.15,
+      0.15
+    ],
+    "seed": 0,
+    "permutations": 200,
+    "alpha": 0.05,
+    "min_effect_accuracy_over_majority": 0.1
+  }
+}

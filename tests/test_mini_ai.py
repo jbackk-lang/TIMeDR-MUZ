@@ -20,7 +20,7 @@ def _toy(n=600, seed=0):
 
 
 def test_feature_names():
-    assert len(FEATURE_NAMES) == 40 and len(set(FEATURE_NAMES)) == 40
+    assert len(FEATURE_NAMES) == 42 and len(set(FEATURE_NAMES)) == 42
 
 
 def test_mlp_learns_and_roundtrips(tmp_path):

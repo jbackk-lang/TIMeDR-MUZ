@@ -7,6 +7,7 @@
   python -m muz approve  --plans wyniki/kolejka/plany.jsonl --plan-id ID --key ~/.muz/bramka.key [--pin-file ...]
   python -m muz execute  --plans ... --plan-id ID --approval wyniki/kolejka/ID.approval.json --pubkey HEX --out wyniki
   python -m muz verify   --log wyniki/audit.jsonl
+  python -m muz train    [--cpi dane/cpi.csv] [--packages 600] [--out modele/mini_ai_syntetyczny_v0.2]
 """
 from __future__ import annotations
 
@@ -55,7 +56,23 @@ def main(argv=None) -> int:
     e_.add_argument("--plans", required=True); e_.add_argument("--plan-id", required=True)
     e_.add_argument("--approval"); e_.add_argument("--pubkey", required=True); e_.add_argument("--out", required=True)
     sub.add_parser("verify").add_argument("--log", required=True)
+    t_ = sub.add_parser("train")
+    t_.add_argument("--cpi"); t_.add_argument("--packages", type=int)
+    t_.add_argument("--out", default=str(pipeline.REPO_DIR / "modele" / "mini_ai_syntetyczny_v0.2"))
     a = ap.parse_args(argv)
+
+    if a.cmd == "train":
+        from . import adapter
+        from .core.common import sha256_file
+        from .mini_ai.train import train_and_register
+        th, th_sha = pipeline.load_frozen(pipeline.THRESHOLDS)
+        dec, dec_sha = pipeline.load_frozen(pipeline.DECISION)
+        cpi_path = a.cpi or (pipeline.REPO_DIR / "dane" / "cpi.csv")
+        cpi = adapter.load_cpi(cpi_path) if Path(cpi_path).exists() else None
+        res = train_and_register(out_dir=a.out, th=th, th_sha=th_sha, dec=dec, dec_sha=dec_sha, cpi=cpi,
+                                 cpi_sha=sha256_file(cpi_path) if cpi else None, n_packages=a.packages)
+        print(json.dumps(res, indent=2, ensure_ascii=False))
+        return 0
 
     if a.cmd == "run":
         s = pipeline.run(a.inputs, a.mapping, a.out, cpi_path=a.cpi, contracts_path=a.contracts, log_path=a.log)

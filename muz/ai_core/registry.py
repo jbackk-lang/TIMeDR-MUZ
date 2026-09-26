@@ -25,7 +25,8 @@ class ModelRegistry:
         return json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else []
 
     def evaluate_and_register(self, *, artifact_path, hypothesis: Hypothesis, controls: ControlResult | None,
-                              evidence: TestEvidence | None, criteria: ProtocolCriteria = ProtocolCriteria()) -> dict:
+                              evidence: TestEvidence | None, criteria: ProtocolCriteria = ProtocolCriteria(),
+                              synthetic: bool = False, extra: dict | None = None) -> dict:
         proto = TIMDRProtocol(criteria)
         prereg = proto.preregister(hypothesis)
         controls = proto.run_controls(controls)
@@ -34,15 +35,21 @@ class ModelRegistry:
                 "hypothesis": hypothesis.name, "prereg_fingerprint": prereg.fingerprint,
                 "controls": {"positive_ok": controls.positive_ok, "negative_ok": controls.negative_ok},
                 "verdict": result.verdict, "reason": result.reason, "method": result.method,
-                "p_value": result.p_value, "effect_size": result.effect_size}
+                "p_value": result.p_value, "effect_size": result.effect_size,
+                "synthetic": synthetic, **(extra or {})}
         nodes = self._load() + [node]
         self.path.write_text(json.dumps(nodes, indent=2, ensure_ascii=False), encoding="utf-8")
         return node
 
-    def require_supported(self, artifact_path) -> str:
+    def require_supported(self, artifact_path, allow_synthetic: bool = False) -> str:
+        """Model uczony tylko na pakietach syntetycznych jest dopuszczany wylacznie w trybie cienia
+        (allow_synthetic=True) - nigdy do tworzenia planow wykonania."""
         sha = sha256_file(artifact_path)
         for node in self._load():
             if node["artifact_sha256"] == sha and node["verdict"] == "SUPPORTED":
+                if node.get("synthetic") and not allow_synthetic:
+                    raise NotSupported(f"INCONCLUSIVE_SYNTHETIC_ONLY: {Path(artifact_path).name} ma SUPPORTED tylko na "
+                                       f"danych syntetycznych - dozwolony wylacznie tryb cienia")
                 return sha
         raise NotSupported(f"INCONCLUSIVE_NOT_SUPPORTED: {Path(artifact_path).name} ({sha[:12]}) nie ma werdyktu "
                            f"SUPPORTED w rejestrze - MUZ nie laduje tego modelu")

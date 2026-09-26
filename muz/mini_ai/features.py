@@ -1,4 +1,9 @@
-"""Wektor 40 cech na strumien (dokument MUZ, modul 5, "Wejscie")."""
+"""Wektor cech na strumien (dokument MUZ, modul 5, "Wejscie": ok. 40 cech).
+
+v0.2 (decyzje v0.2): 42 cechy - doszly dwie cechy wagi kosztu wzgledem dochodu gospodarstwa
+(udzial kwoty w dochodzie, roczny koszt podwyzki r/r wzgledem dochodu), bez ktorych ta sama podwyzka
+wyglada identycznie w budzecie 3 tys. i 15 tys. zl miesiecznie.
+"""
 from __future__ import annotations
 
 import math
@@ -25,8 +30,11 @@ FEATURE_NAMES = (
     *(f"kat_{c}" for c in CATEGORIES),
     # strumien (3)
     "log_kwota", "dlugosc_historii", "flagi_3_mies",
+    # waga wzgledem dochodu gospodarstwa (2), v0.2
+    "udzial_w_dochodzie", "podwyzka_roczna_do_dochodu",
 )
-assert len(FEATURE_NAMES) == 40
+N_FEATURES = len(FEATURE_NAMES)
+assert N_FEATURES == 42
 
 
 def _f(x) -> float:
@@ -42,7 +50,7 @@ def _months_between(a: date, b: date) -> int:
 
 
 def build_features(frames: list, phase: str, contract: dict | None, meta_state=None, meta_M=None,
-                   cpi_month: float | None = None) -> np.ndarray:
+                   cpi_month: float | None = None, income_month_gr: float | None = None) -> np.ndarray:
     """frames: SignalFrame strumienia do biezacego miesiaca wlacznie (bez przyszlosci)."""
     f = frames[-1]
     y, m = map(int, f.month.split("-"))
@@ -69,6 +77,12 @@ def build_features(frames: list, phase: str, contract: dict | None, meta_state=N
     last3 = frames[-3:]
     v += [_clip(math.log10(f.amount_gr / 100.0 + 1.0) / 5.0, 0, 1), _clip(len(frames) / 36.0, 0, 1),
           sum(x.any_flag for x in last3) / 3.0]
+    share, extra = 0.0, 0.0
+    if income_month_gr and income_month_gr > 0:
+        share = f.amount_gr / income_month_gr
+        if len(frames) >= 13:
+            extra = max(0.0, f.amount_gr - frames[-13].amount_gr) * 12.0 / income_month_gr
+    v += [_clip(share / 0.5, 0, 1), _clip(extra / 0.2, 0, 1)]  # skale: 50% dochodu, 20% dochodu rocznie
     arr = np.asarray(v, dtype=float)
-    assert arr.shape == (40,)
+    assert arr.shape == (N_FEATURES,)
     return arr

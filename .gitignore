@@ -7,3 +7,4 @@ dane/
 !cpi_przyklad.csv
 mapowanie.json
 .pytest_cache/
+modele/
