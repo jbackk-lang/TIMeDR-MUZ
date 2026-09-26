@@ -28,7 +28,7 @@ from .mini_ai.policy import propose as mini_ai_propose
 
 REPO_DIR = PKG_DIR.parent
 PREREG = REPO_DIR / "prereg"
-THRESHOLDS = PREREG / "muz_thresholds_v0.1.json"
+THRESHOLDS = PREREG / "muz_thresholds_v0.2.json"
 DECISION = PREREG / "muz_decision_v0.1.json"
 
 
@@ -83,7 +83,7 @@ def prepare(inputs, mapping_path, cpi_path=None, contracts_path=None, salt_path=
         frames = {s.stream_id: signals.stream_signals(s, th, cpi) for s in monthly}
         res = signals.resonance_by_month(frames, th["resonance_min_count"])
         s_phases = {sid: phases.stream_phases(fs, th) for sid, fs in frames.items()}
-        bmeta = meta.budget_meta(streams, frames, cpi, th["budget_min_streams"])
+        bmeta = meta.budget_meta(streams, frames, cpi, th["budget_min_streams"], th.get("J_definition", "slope"))
         calib = phases.calibrate_budget(bmeta, th)
         hard = phases.balance_hard_rule(records)
         b_phases = phases.budget_phases(bmeta, calib, th, hard)

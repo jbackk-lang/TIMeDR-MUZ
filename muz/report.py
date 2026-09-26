@@ -55,11 +55,15 @@ def render(*, streams, frames, s_phases, bmeta, b_phases, calib, res, hard, cpi_
              f"krytyczna > {_num(calib.rho_critical)}.\n")
     if not cpi_given:
         L.append("Brak pliku CPI: kanał J i reguła „ponad CPI” są niepoliczone (–), a nie zerowe.\n")
-    L.append("| Miesiąc | Strumienie | Λ | τ | ρ | J | Faza |")
-    L.append("| --- | --- | --- | --- | --- | --- | --- |")
+    L.append("| Miesiąc | Strumienie | Λ | τ | ρ | J (Spearman) | nachylenie vs CPI | Faza |")
+    L.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
     for b, ph in list(zip(bmeta, b_phases))[-12:]:
         s = b.state
-        L.append(f"| {b.month} | {b.n_streams} | {_num(s.Lambda)} | {_num(s.tau)} | {_num(s.rho)} | {_num(s.J)} | {NAMES[ph]} |")
+        L.append(f"| {b.month} | {b.n_streams} | {_num(s.Lambda)} | {_num(s.tau)} | {_num(s.rho)} | {_num(s.J)} | "
+                 f"{_num(b.j_slope)} | {NAMES[ph]} |")
+    L.append("")
+    L.append("J: korelacja rang zmian kosztów r/r z inflacją r/r z 12 miesięcy (−1…1). Nachylenie: o ile punktów "
+             "procentowych r/r zmieniają się koszty na 1 pkt inflacji — tylko opisowo, poza agregatem.")
     L.append("")
     if hard:
         L.append(f"Twarda reguła (prognozowane saldo < 0 w 30 dni) zadziałała w miesiącach: {', '.join(sorted(hard))}.\n")

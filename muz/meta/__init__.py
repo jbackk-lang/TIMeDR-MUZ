@@ -4,7 +4,9 @@ Mapowanie (dokument TIMeDR-MUZ, modul 3):
   Lambda - dyspersja: 1.4826*MAD wzglednych zmian kwot miedzy strumieniami w miesiacu
   tau    - tempo: zmiana odsetka strumieni z defektem miesiac do miesiaca
   rho    - gestosc: odsetek strumieni z dowolna flaga M/S
-  J      - sprzezenie z tlem: nachylenie r/r indeksu kosztow wzgledem CPI r/r (12 miesiecy)
+  J      - sprzezenie z tlem (progi v0.2): korelacja Spearmana r/r indeksu kosztow z CPI r/r (12 miesiecy),
+           zakres [-1, 1]; v0.1 uzywala nachylenia regresji (bez ograniczen - walidator META to zglosil).
+           Nachylenie zostaje jako liczba opisowa j_slope, poza agregatem.
 Wartosci niepoliczalne (za malo danych, brak CPI) to NaN, nie zero.
 """
 from __future__ import annotations
@@ -27,10 +29,30 @@ class BudgetMeta:
     n_streams: int
     state: MetaState
     M: MetaState | None   # roznica wzgledem poprzedniego miesiaca
+    j_slope: float = float("nan")  # opisowo: o ile pkt proc. r/r rosna koszty na 1 pkt inflacji
+
+
+def _rank(x: np.ndarray) -> np.ndarray:
+    """Rangi srednie przy remisach (jak w Spearmanie)."""
+    order = np.argsort(x, kind="mergesort")
+    ranks = np.empty(len(x))
+    ranks[order] = np.arange(1, len(x) + 1)
+    for v in np.unique(x):
+        m = x == v
+        if m.sum() > 1:
+            ranks[m] = ranks[m].mean()
+    return ranks
+
+
+def spearman(a, b) -> float:
+    ra, rb = _rank(np.asarray(a, dtype=float)), _rank(np.asarray(b, dtype=float))
+    if np.std(ra) == 0 or np.std(rb) == 0:
+        return NAN
+    return float(np.corrcoef(ra, rb)[0, 1])
 
 
 def budget_meta(streams: list[Stream], frames: dict[str, list[SignalFrame]], cpi: dict[str, float] | None,
-                min_streams: int = 3) -> list[BudgetMeta]:
+                min_streams: int = 3, j_definition: str = "spearman") -> list[BudgetMeta]:
     monthly = [s for s in streams if s.cadence == "monthly"]
     months = sorted({m for s in monthly for m in s.months})
     fidx = {sid: {f.month: f for f in fs} for sid, fs in frames.items()}
@@ -51,7 +73,7 @@ def budget_meta(streams: list[Stream], frames: dict[str, list[SignalFrame]], cpi
         rho = sum(f.any_flag for f in fr) / len(fr)
         def_frac = sum(f.defect for f in fr) / len(fr)
         tau = def_frac - prev_def_frac if prev_def_frac is not None else NAN
-        J = NAN
+        J, slope = NAN, NAN
         if cpi is not None and i >= 23:
             yy, cc = [], []
             for j in range(i - 11, i + 1):
@@ -59,10 +81,16 @@ def budget_meta(streams: list[Stream], frames: dict[str, list[SignalFrame]], cpi
                     yy.append(index[j] / index[j - 12] - 1.0)
                     cc.append(cpi[months[j]])
             if len(yy) >= 6 and np.std(cc) > 0:
-                J = float(np.polyfit(cc, yy, 1)[0])
+                slope = float(np.polyfit(cc, yy, 1)[0])
+                if j_definition == "spearman":
+                    J = spearman(yy, cc)
+                elif j_definition == "slope":
+                    J = slope
+                else:
+                    raise ValueError(f"nieznana definicja J: {j_definition}")
         state = MetaState(Lambda=lam, tau=tau, rho=rho, J=J)
         M = prev_state.delta(state) if prev_state is not None else None
-        out.append(BudgetMeta(m, len(active), state, M))
+        out.append(BudgetMeta(m, len(active), state, M, slope))
         prev_def_frac, prev_state = def_frac, state
     return out
 

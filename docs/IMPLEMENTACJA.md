@@ -76,7 +76,7 @@ class Executor(Protocol):
 
 1. **Pobranie** — `prepare()`: import, deduplikacja (klucz: data, kwota, kontrahent, hash opisu; duplikaty w jednym pliku zostają), strumienie miesięczne, dołączenie umów.
 2. **Sygnały** — anomalia (mediana ± 3·MAD, pełne okno 12 próbek), defekt (zmiana względna > 10%), skręt (zmiana znaku nachylenia regresji na 3 próbkach, gdy |nachylenie| > 5% poziomu), rezonans M (≥ 3 strumienie ze zdarzeniem w miesiącu), baseline „r/r > CPI + 5 pp”.
-3. **META-DYNAMICS** — Λ, τ, ρ, J i `M` dla budżetu; J = nachylenie r/r kosztów względem CPI (12 miesięcy); brak CPI daje NaN, nie zero; raport `meta_validator` z hashem w `MetaState`.
+3. **META-DYNAMICS** — Λ, τ, ρ, J i `M` dla budżetu; od progów v0.2 J = korelacja Spearmana zmian kosztów r/r z CPI r/r (12 miesięcy, zakres −1…1), a nachylenie regresji zostaje w raporcie tylko opisowo; brak CPI daje NaN, nie zero; raport `meta_validator` z hashem w `MetaState`.
 4. **Faza** — reguły z tabeli dokumentu, histereza (wyjście po 2 okresach), percentyle z pierwszej połowy historii, INCONCLUSIVE przy < 24 miesiącach albo zapadniętym percentylu, twarda reguła salda.
 5. **Propozycja** — polityka regułowa (brak etykiet) albo MLP z rejestru; bramka fazy; wstrzymanie poniżej 0,6.
 6. **Weryfikacja** — `verify_proposal()`: rekordy źródłowe (hashe surowych transakcji, CPI, umowa), sprzeczność, komplet danych dla „anulować”, świeżość 7 dni, zakazane twierdzenia; renderer deterministyczny; parafraza tylko przez `gate_candidate`.
@@ -145,7 +145,8 @@ Dokument nie podaje tych wartości; są zamrożone w `prereg/` i wymagają pre-r
 - próg skrętu: 5% mediany poziomu strumienia,
 - progi ρ domyślne przy INCONCLUSIVE: 0,25 (przejściowa) i 0,5 (krytyczna),
 - polityka regułowa (`muz_decision_v0.1.json`) i margines wyboru modelu 0,05 w log-loss,
-- 40 cech mini-AI (lista w `muz/mini_ai/features.py`).
+- 40 cech mini-AI (lista w `muz/mini_ai/features.py`),
+- definicja kanału J: v0.1 nachylenie regresji (bez ograniczeń, walidator META zgłosił wartości poza [0,1]); v0.2 korelacja Spearmana w [−1, 1]. Obie wersje progów są zamrożone w `FROZEN.json`, aktywna jest v0.2.
 
 ## 10. Bez technologii Meta
 

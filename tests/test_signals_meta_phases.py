@@ -124,3 +124,32 @@ def test_twist_on_trend_reversal():
     s = Stream("t", "T", [f"2024-{i + 1:02d}" for i in range(6)], amounts, "monthly")
     fr = signals.stream_signals(s, TH)
     assert [f.twist for f in fr] == [False, False, False, False, False, True]  # szczyt daje nachylenie 0
+
+
+def test_J_v02_is_bounded_spearman_and_slope_kept(data):
+    _, frames, streams = data
+    cpi = {synth.month_date(i, 1).strftime("%Y-%m"): 0.03 + 0.001 * i for i in range(30)}
+    bm = meta.budget_meta(streams, frames, cpi, j_definition="spearman")
+    js = [b.state.J for b in bm if meta.is_finite(b.state.J)]
+    assert js and all(-1.0 <= j <= 1.0 for j in js)
+    assert any(meta.is_finite(b.j_slope) for b in bm)
+    old = meta.budget_meta(streams, frames, cpi, j_definition="slope")
+    assert [b.j_slope for b in old] == [b.j_slope for b in bm]  # nachylenie takie samo w obu wersjach
+    with pytest.raises(ValueError):
+        meta.budget_meta(streams, frames, cpi, j_definition="tanh")
+
+
+def test_spearman_known_values():
+    assert meta.spearman([1, 2, 3, 4], [10, 20, 30, 40]) == pytest.approx(1.0)
+    assert meta.spearman([1, 2, 3, 4], [4, 3, 2, 1]) == pytest.approx(-1.0)
+    assert meta.spearman([1, 2, 3, 100], [1, 2, 3, 4]) == pytest.approx(1.0)  # odporna na wartosc odstajaca
+    assert math.isnan(meta.spearman([1, 1, 1], [1, 2, 3]))
+
+
+def test_thresholds_v01_still_frozen_and_v02_active():
+    from muz import pipeline
+    th1, _ = pipeline.load_frozen(pipeline.PREREG / "muz_thresholds_v0.1.json")
+    th2, _ = pipeline.load_frozen(pipeline.THRESHOLDS)
+    assert "J_definition" not in th1 and th2["J_definition"] == "spearman"
+    assert {k: v for k, v in th2.items() if k not in ("version", "note", "J_definition", "J_window_months", "J_min_points")} == \
+           {k: v for k, v in th1.items() if k not in ("version", "note")}
