@@ -1,0 +1,39 @@
+{
+  "note": "Pliki wendorowane bez zmian. muz sprawdza te hashe przy starcie (verify_vendor) i odmawia pracy przy niezgodnosci.",
+  "sources": {
+    "topologic/": {
+      "repo": "jbackk-lang/topologic",
+      "commit": "ac2f4f5",
+      "version": "0.3.0"
+    },
+    "meta_state.py": {
+      "repo": "jbackk-lang/TIMDR-META-DYNAMICS",
+      "path": "core_meta/meta_state.py",
+      "commit": "c1897b2"
+    },
+    "math_formalism/": {
+      "repo": "jbackk-lang/TIMDR-Math-Formalism",
+      "path": "timdr_formalism/{pipeline,meta_validator}.py",
+      "commit": "689452c"
+    },
+    "ai_core/": {
+      "repo": "jbackk-lang/TIMDR-AI-Core",
+      "path": "{timdr_ai_core,claim_graph_gate}.py",
+      "commit": "2f27e00"
+    }
+  },
+  "files": {
+    "ai_core/claim_graph_gate.py": "f3f96fd733fda04eda2889e1d6f82c7cc29283955d762eee439bf607aed3b5b7",
+    "ai_core/timdr_ai_core.py": "d687becb1485673afd84f553e3c16f37a3827caf285cd3510f9371c33783ffea",
+    "math_formalism/meta_validator.py": "493d32309b25c7565de64dccd315cff73a8fbb80d86d59ab951be8a9491354cf",
+    "math_formalism/pipeline.py": "3909043c54300e04399bb16b5fe8ccd7b6d70ede866b2dd42992f2cc3a70d9a0",
+    "meta_state.py": "7e45dc393fcb6857a99bb5db8d629efce201db2da5934b869fae757f40e55c03",
+    "topologic/__init__.py": "94520ce6c6933a73a63520c9452bec93ea200e0ca1ee7432bbb28193847706d6",
+    "topologic/anomaly.py": "42ae214846bbc326c4ee28f38f4e9358b96658ea8ab1a890a905c2c20a7a7de1",
+    "topologic/defect.py": "640028adcb5da107b1c24cfa5b3729a1f3f13a1b2887c97e52d7d8a56f5d9eed",
+    "topologic/j_operator.py": "a7300b270c444feda2d565934b68839cd6add077067a7951b0951bdf7628fff2",
+    "topologic/resonance.py": "a726557658ecd33b3526b0c34415388e968aea20083ef81496e0042e8e564ef7",
+    "topologic/resonance_m.py": "3f2ebb39279837025c7064b9923921f10b6ff5bc3006896b30d8972262edc379",
+    "topologic/twist.py": "a2d7085b5f85f8fab503b40a7d525a3291e7e0313a7a0a67ad9406b74903b948"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "note": "Nazwy kolumn z naglowka wyciagu CSV Twojego banku. Wiersze przed naglowkiem sa pomijane. Kodowanie (UTF-8 / CP1250) i separator (; , tab) sa rozpoznawane automatycznie.",
+  "date": "Data operacji",
+  "amount": "Kwota",
+  "counterparty": "Nadawca / Odbiorca",
+  "description": "Tytuł",
+  "currency": "Waluta",
+  "balance": "Saldo po operacji",
+  "aliases": {
+    "ORANGE": "ORANGE POLSKA"
+  }
+}

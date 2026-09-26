@@ -1,0 +1,14 @@
+{miejscowosc}, {data}
+
+{imie_nazwisko}
+{adres}
+
+{kontrahent}
+{adres_kontrahenta}
+
+Dotyczy: umowy nr {numer_umowy}
+
+Proszę o zmianę obecnego planu na: {nowy_plan}. Proszę o potwierdzenie warunków i daty, od której zmiana obowiązuje, przed jej wprowadzeniem.
+
+Z poważaniem
+{imie_nazwisko}

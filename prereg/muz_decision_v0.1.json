@@ -1,0 +1,21 @@
+{
+  "version": "0.1",
+  "note": "Warstwa decyzyjna etapu 1 (dokument MUZ, moduly 4-5). Zamrozone przed uzyciem; zmiana = nowy plik + nowy hash w FROZEN.json.",
+  "actions": ["anulowac", "negocjowac", "zmienic", "zostawic"],
+  "allowed_by_phase": {
+    "stabilna": ["zostawic"],
+    "przejsciowa": ["negocjowac", "zmienic", "zostawic"],
+    "krytyczna": ["anulowac", "negocjowac", "zmienic", "zostawic"]
+  },
+  "abstain_below": 0.6,
+  "rule_policy": {
+    "note": "Polityka regulowa na start (brak etykiet). Prototyp; wymaga pre-rejestracji P2 przed porownaniem z MLP.",
+    "przejsciowa": "negocjowac gdy defekt albo baseline_cpi, inaczej zostawic",
+    "krytyczna": "anulowac gdy kategoria=subskrypcja i negocjacje>=1; zmienic gdy negocjacje>=1; inaczej negocjowac"
+  },
+  "mlp": {"sizes": [40, 32, 16, 4], "epochs": 300, "lr": 0.01, "l2": 0.0001, "batch": 32, "seed": 0},
+  "logistic": {"sizes": [40, 4]},
+  "model_selection_logloss_margin": 0.05,
+  "min_labels_for_model": 50,
+  "top_features": 3
+}

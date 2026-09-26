@@ -1,0 +1,21 @@
+{
+  "version": "0.1",
+  "note": "Progi etapu 0, ustalone z gory w dokumencie TIMeDR-MUZ przed jakimkolwiek uruchomieniem na danych uzytkownika. Zmiana wymaga nowego pliku i nowego hasha w FROZEN.sha256.",
+  "anomaly_k": 3.0,
+  "anomaly_window": 12,
+  "defect_rel_threshold": 0.10,
+  "twist_rel_threshold": 0.05,
+  "resonance_min_count": 3,
+  "baseline_cpi_margin": 0.05,
+  "recurring_min_payment_months": 3,
+  "monthly_min_coverage": 0.75,
+  "budget_min_streams": 3,
+  "phase": {
+    "hysteresis_exit_periods": 2,
+    "budget_min_history_months": 24,
+    "percentile_transitional": 75,
+    "percentile_critical": 95,
+    "budget_rho_default_transitional": 0.25,
+    "budget_rho_default_critical": 0.5
+  }
+}

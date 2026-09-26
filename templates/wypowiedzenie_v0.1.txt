@@ -1,0 +1,14 @@
+{miejscowosc}, {data}
+
+{imie_nazwisko}
+{adres}
+
+{kontrahent}
+{adres_kontrahenta}
+
+Wypowiedzenie umowy nr {numer_umowy}
+
+Niniejszym wypowiadam umowę nr {numer_umowy} z zachowaniem okresu wypowiedzenia wynoszącego {okres_wypowiedzenia} mies. Proszę o potwierdzenie przyjęcia wypowiedzenia i wskazanie daty rozwiązania umowy.
+
+Z poważaniem
+{imie_nazwisko}

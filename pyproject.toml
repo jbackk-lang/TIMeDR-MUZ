@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "timedr-muz"
+version = "0.0.1"
+description = "TIMeDR-MUZ: lokalny, audytowalny agent wykonawczy oparty na TIMDR (etap 0-1, prototyp)."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Jacek Stanisław Kielich" }]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+szyfrowanie = ["cryptography"]      # AES-256-GCM, Ed25519 (bez niej: Ed25519 w czystym Pythonie, magazyn odmawia pracy)
+pisma = ["reportlab"]               # PDF
+qr = ["segno"]                      # obraz kodu QR (czysty Python)
+formularze = ["playwright"]         # Chromium, opcjonalnie
+testy = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["muz*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::pytest.PytestCollectionWarning"]

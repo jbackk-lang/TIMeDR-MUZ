@@ -1,0 +1,216 @@
+{
+  "muz.lsf_record/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.lsf_record/1",
+    "type": "object",
+    "required": [
+      "date",
+      "amount_gr",
+      "currency",
+      "counterparty",
+      "iban_hash",
+      "source",
+      "raw_hash"
+    ],
+    "properties": {
+      "date": {},
+      "amount_gr": {},
+      "currency": {},
+      "counterparty": {},
+      "iban_hash": {},
+      "source": {},
+      "raw_hash": {}
+    }
+  },
+  "muz.stream/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.stream/1",
+    "type": "object",
+    "required": [
+      "stream_id",
+      "counterparty",
+      "contract",
+      "cadence",
+      "series"
+    ],
+    "properties": {
+      "stream_id": {},
+      "counterparty": {},
+      "contract": {},
+      "cadence": {},
+      "series": {}
+    }
+  },
+  "muz.signal_frame/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.signal_frame/1",
+    "type": "object",
+    "required": [
+      "stream_id",
+      "month",
+      "flags",
+      "strengths",
+      "baseline_hit",
+      "thresholds_sha256"
+    ],
+    "properties": {
+      "stream_id": {},
+      "month": {},
+      "flags": {},
+      "strengths": {},
+      "baseline_hit": {},
+      "thresholds_sha256": {}
+    }
+  },
+  "muz.meta_state/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.meta_state/1",
+    "type": "object",
+    "required": [
+      "scope",
+      "period",
+      "Lambda",
+      "tau",
+      "rho",
+      "J",
+      "M",
+      "validator_report_sha256"
+    ],
+    "properties": {
+      "scope": {},
+      "period": {},
+      "Lambda": {},
+      "tau": {},
+      "rho": {},
+      "J": {},
+      "M": {},
+      "validator_report_sha256": {}
+    }
+  },
+  "muz.phase_state/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.phase_state/1",
+    "type": "object",
+    "required": [
+      "scope",
+      "subject",
+      "period",
+      "phase",
+      "rules_fired",
+      "hysteresis_counter",
+      "calibration_status"
+    ],
+    "properties": {
+      "scope": {},
+      "subject": {},
+      "period": {},
+      "phase": {},
+      "rules_fired": {},
+      "hysteresis_counter": {},
+      "calibration_status": {}
+    }
+  },
+  "muz.action_proposal/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.action_proposal/1",
+    "type": "object",
+    "required": [
+      "stream_id",
+      "probabilities",
+      "action",
+      "confidence",
+      "top_features",
+      "weights_sha256",
+      "abstained"
+    ],
+    "properties": {
+      "stream_id": {},
+      "probabilities": {},
+      "action": {},
+      "confidence": {},
+      "top_features": {},
+      "weights_sha256": {},
+      "abstained": {}
+    }
+  },
+  "muz.verified_claim/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.verified_claim/1",
+    "type": "object",
+    "required": [
+      "claim_id",
+      "verdict",
+      "record_ids",
+      "requirements_met",
+      "text",
+      "graph_sha256"
+    ],
+    "properties": {
+      "claim_id": {},
+      "verdict": {},
+      "record_ids": {},
+      "requirements_met": {},
+      "text": {},
+      "graph_sha256": {}
+    }
+  },
+  "muz.action_plan/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.action_plan/1",
+    "type": "object",
+    "required": [
+      "plan_id",
+      "claim_id",
+      "executor",
+      "target_host",
+      "content",
+      "level",
+      "plan_sha256"
+    ],
+    "properties": {
+      "plan_id": {},
+      "claim_id": {},
+      "executor": {},
+      "target_host": {},
+      "content": {},
+      "level": {},
+      "plan_sha256": {}
+    }
+  },
+  "muz.approval/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.approval/1",
+    "type": "object",
+    "required": [
+      "plan_sha256",
+      "decision",
+      "signature",
+      "public_key",
+      "expires_at"
+    ],
+    "properties": {
+      "plan_sha256": {},
+      "decision": {},
+      "signature": {},
+      "public_key": {},
+      "expires_at": {}
+    }
+  },
+  "muz.execution_receipt/1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "muz.execution_receipt/1",
+    "type": "object",
+    "required": [
+      "plan_sha256",
+      "status",
+      "evidence",
+      "finished_at"
+    ],
+    "properties": {
+      "plan_sha256": {},
+      "status": {},
+      "evidence": {},
+      "finished_at": {}
+    }
+  }
+}

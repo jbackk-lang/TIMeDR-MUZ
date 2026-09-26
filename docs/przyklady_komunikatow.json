@@ -1,0 +1,363 @@
+[
+  {
+    "schema": "muz.lsf_record/1",
+    "payload": {
+      "date": "2024-01-05",
+      "amount_gr": -8900,
+      "currency": "PLN",
+      "counterparty": "ORANGE POLSKA",
+      "iban_hash": "f2510374f777d01e",
+      "source": "w.csv",
+      "raw_hash": "620d15051b23cb549d5662ea9379e12bf042386a387ae052c1497be7b65f45a1",
+      "balance_gr": 2791100
+    },
+    "producer": {
+      "module": "muz.adapter",
+      "code_sha256": "c6f3107dc1a55d8b3d6b019fc826736360fcbf03061a8ae4fe5ef11751764745"
+    },
+    "parents": [],
+    "id": "d7914daa50bf498ea3079ad2ca070109",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "a5bd3a197217e9af8692193b56969145e95d41c64ecebe37b0cf944f771d9e02"
+  },
+  {
+    "schema": "muz.stream/1",
+    "payload": {
+      "stream_id": "aa797c92d563",
+      "counterparty": "ORANGE POLSKA",
+      "contract": {
+        "counterparty": "ORANGE POLSKA",
+        "legal_name": "Orange Polska S.A.",
+        "category": "telekom",
+        "number": "TEL/123/2023",
+        "address": "Al. Jerozolimskie 160, 02-326 Warszawa",
+        "notice_period_months": 1,
+        "end_date": "2027-06-30",
+        "promo_end": null,
+        "negotiations": 0,
+        "cancel_channel": {
+          "type": "letter",
+          "email": "obsluga@example.test"
+        },
+        "confirmed_by_user": true
+      },
+      "cadence": "monthly",
+      "series": [
+        [
+          "2024-01",
+          8900
+        ],
+        [
+          "2024-02",
+          8900
+        ],
+        [
+          "2024-03",
+          8900
+        ],
+        [
+          "2024-04",
+          8900
+        ],
+        [
+          "2024-05",
+          8900
+        ],
+        [
+          "2024-06",
+          8900
+        ],
+        [
+          "2024-07",
+          8900
+        ],
+        [
+          "2024-08",
+          8900
+        ],
+        [
+          "2024-09",
+          8900
+        ],
+        [
+          "2024-10",
+          8900
+        ],
+        [
+          "2024-11",
+          8900
+        ],
+        [
+          "2024-12",
+          8900
+        ],
+        [
+          "2025-01",
+          8900
+        ],
+        [
+          "2025-02",
+          8900
+        ],
+        [
+          "2025-03",
+          8900
+        ],
+        [
+          "2025-04",
+          8900
+        ],
+        [
+          "2025-05",
+          8900
+        ],
+        [
+          "2025-06",
+          8900
+        ],
+        [
+          "2025-07",
+          8900
+        ],
+        [
+          "2025-08",
+          8900
+        ],
+        [
+          "2025-09",
+          11900
+        ]
+      ]
+    },
+    "producer": {
+      "module": "muz.adapter",
+      "code_sha256": "c6f3107dc1a55d8b3d6b019fc826736360fcbf03061a8ae4fe5ef11751764745"
+    },
+    "parents": [],
+    "id": "1f2ffc8365544fa58b975c88823cb416",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "63a1565cea1b8a2e7d61f0600bbf3b565dab49c4cb7958071727cd2fcb56e0ec"
+  },
+  {
+    "schema": "muz.signal_frame/1",
+    "payload": {
+      "stream_id": "aa797c92d563",
+      "month": "2025-09",
+      "amount_gr": 11900,
+      "flags": {
+        "anomaly": true,
+        "defect": true,
+        "twist": false
+      },
+      "strengths": {
+        "anomaly_z": null,
+        "defect_rel": 0.33707865168539325,
+        "yoy": 0.3370786516853932
+      },
+      "baseline_hit": null,
+      "thresholds_sha256": "8bdc56bc7fe37cbb7e09e1b0d385ae8b892ed4c9d59497f20e43ababfd76f48a"
+    },
+    "producer": {
+      "module": "muz.signals",
+      "code_sha256": "5925c43bdc34bd5b54f6fcf8333261d79eb35eca493b23f05f914bea8332b80a"
+    },
+    "parents": [
+      "1f2ffc8365544fa58b975c88823cb416"
+    ],
+    "id": "526ad01e4bf542fa9cf6a1c578f4f0b5",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "56327a5dee49f4ea3234538b0feee72154eb232fbc98a3209833ae199d04d54b"
+  },
+  {
+    "schema": "muz.meta_state/1",
+    "payload": {
+      "scope": "budget",
+      "period": "2025-09",
+      "Lambda": 0.016198739319232384,
+      "tau": 0.25,
+      "rho": 0.25,
+      "J": null,
+      "M": {
+        "Lambda": 0.016198739319232384,
+        "tau": 0.25,
+        "rho": 0.25,
+        "J": null
+      },
+      "validator_report_sha256": "6ff480d34e94eb791b6b4ff39e5aeabc0566cc4592b7e79afcca24ae0abeb991"
+    },
+    "producer": {
+      "module": "muz.meta",
+      "code_sha256": "672af9b4253096710c8159d2afdd5ffb178a3425555a5514062fa5544333f075"
+    },
+    "parents": [
+      "75ea6512795f4b3da7a5d825090f149f"
+    ],
+    "id": "1493dc018229486d90b98e18cc9e322d",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "7d4588baa3af49de4bf88ccbf209c0fdc1dac71c079eac1cae91b2d54de601e9"
+  },
+  {
+    "schema": "muz.phase_state/1",
+    "payload": {
+      "scope": "stream",
+      "subject": "aa797c92d563",
+      "period": "2025-09",
+      "phase": "krytyczna",
+      "rules_fired": [
+        "defekt >= 2x prog",
+        "anomalia",
+        "defekt"
+      ],
+      "hysteresis_counter": 0,
+      "calibration_status": "PREREGISTERED"
+    },
+    "producer": {
+      "module": "muz.phases",
+      "code_sha256": "748ae161acf72f04dc7457fa7d246bd994725f196d15c218f3d4075abc07bae8"
+    },
+    "parents": [
+      "526ad01e4bf542fa9cf6a1c578f4f0b5",
+      "839ff3a7279a44b183aea27ac5de4b11"
+    ],
+    "id": "cfe4fd9db6174d56923a3dce37f7fef6",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "cdc0319a037a7a64f1e5183a1a6c75439e12eb9506ddc8307b23d5d9eb69eee8"
+  },
+  {
+    "schema": "muz.action_proposal/1",
+    "payload": {
+      "stream_id": "aa797c92d563",
+      "probabilities": {
+        "anulowac": 0.0,
+        "negocjowac": 1.0,
+        "zmienic": 0.0,
+        "zostawic": 0.0
+      },
+      "action": "negocjowac",
+      "confidence": 1.0,
+      "top_features": [],
+      "weights_sha256": "d40cbc22656725954ca6b6da6d0b4b5e6cd7ce3837675dfb1c957ead14bf7e52",
+      "abstained": false,
+      "source": "rules",
+      "phase": "krytyczna",
+      "note": null
+    },
+    "producer": {
+      "module": "muz.mini_ai.policy.propose",
+      "code_sha256": "8c55e2124af97df472a2d0ae0b6c7c2022a473b5153400a65029137e508d9c66"
+    },
+    "parents": [
+      "cfe4fd9db6174d56923a3dce37f7fef6"
+    ],
+    "id": "b307ff899c70426e98657e5cfb08da8a",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "c03d3c33e53d610dae9388df54ed78b32d13aff307e631f35ef6eecfa30c8587"
+  },
+  {
+    "schema": "muz.verified_claim/1",
+    "payload": {
+      "claim_id": "muz:aa797c92d563:2025-09",
+      "verdict": "SUPPORTED",
+      "record_ids": [
+        "lsf:2814ead7f056a606",
+        "lsf:7166d979893e952d",
+        "umowa:1f2dd565c9966680"
+      ],
+      "requirements_met": true,
+      "text": "Propozycja: prośba o obniżkę (ORANGE POLSKA). Podstawa: ORANGE POLSKA: 89,00 zł (2025-08) → 119,00 zł (2025-09), zmiana +33,7%; zmiana rok do roku +33,7%.\nWerdykt: SUPPORTED\nEvidence: [lsf:2814ead7f056a606, lsf:7166d979893e952d, umowa:1f2dd565c9966680]",
+      "reasons": [],
+      "graph_sha256": "9916c778d5c61db5b2c5b658fba45d357dab99103c6bee1535539ccc07bf1422",
+      "paraphrase_gate": null
+    },
+    "producer": {
+      "module": "muz.ai_core.claims.verify_proposal",
+      "code_sha256": "6ff4c8f7393585ba7e71915f982f1a621d3dfbf1b43247d56b24f3c1b82b0201"
+    },
+    "parents": [
+      "b307ff899c70426e98657e5cfb08da8a"
+    ],
+    "id": "504a59ecd69e40d39d7f2d5e5d6407dd",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "2b95fd2fddc70f45fe906fc7e5f5bbc2f12f2681931be9a4fd507efb9fd9c9e5"
+  },
+  {
+    "schema": "muz.action_plan/1",
+    "payload": {
+      "plan_id": "c4a17912d38f47f497d491c068d3c229",
+      "claim_id": "muz:aa797c92d563:2025-09",
+      "executor": "letter",
+      "target_host": "local",
+      "content": {
+        "text": "Warszawa, 2025-09-15\n\nJan Testowy\nul. Przykładowa 1, 00-001 Warszawa\n\nOrange Polska S.A.\nAl. Jerozolimskie 160, 02-326 Warszawa\n\nDotyczy: umowy nr TEL/123/2023\n\nOd 2025-09 opłata wzrosła z 89,00 zł do 119,00 zł (+33,7%). Proszę o przedstawienie oferty, która przywróci dotychczasowy poziom opłaty albo obniży ją przy tym samym zakresie usługi.\n\nZ poważaniem\nJan Testowy\n",
+        "template": "prosba_o_obnizke_v0.1.txt",
+        "template_sha256": "35ada1c093f07a384c380a3d574cfd34930113e8f8353a024a1a58001b416dbe",
+        "to_email": "obsluga@example.test",
+        "subject": "ORANGE POLSKA: negocjowac"
+      },
+      "level": "L1",
+      "action": "negocjowac",
+      "stream_id": "aa797c92d563",
+      "claim_text": "Propozycja: prośba o obniżkę (ORANGE POLSKA). Podstawa: ORANGE POLSKA: 89,00 zł (2025-08) → 119,00 zł (2025-09), zmiana +33,7%; zmiana rok do roku +33,7%.\nWerdykt: SUPPORTED\nEvidence: [lsf:2814ead7f056a606, lsf:7166d979893e952d, umowa:1f2dd565c9966680]",
+      "record_ids": [
+        "lsf:2814ead7f056a606",
+        "lsf:7166d979893e952d",
+        "umowa:1f2dd565c9966680"
+      ],
+      "plan_sha256": "5990987cb1b8d801891a5e0d4f38e37c77f7718b6a90b45c1919428d8e95aaba"
+    },
+    "producer": {
+      "module": "muz.executor.gate.make_plan",
+      "code_sha256": "de28daa8084e6610caff31f7b8b65238b62bf60b757d1786128312ac0159eba9"
+    },
+    "parents": [
+      "504a59ecd69e40d39d7f2d5e5d6407dd"
+    ],
+    "id": "53525cd18a8845d48a9758e8ce878798",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "9f3e47a60e6306a7808882d7eea190a8fdff855079f3628b257dd11913afc460"
+  },
+  {
+    "schema": "muz.approval/1",
+    "payload": {
+      "plan_sha256": "5990987cb1b8d801891a5e0d4f38e37c77f7718b6a90b45c1919428d8e95aaba",
+      "decision": "approve",
+      "expires_at": "2026-09-26T07:04:05+00:00",
+      "signature": "0c440baec56e34c4860a37defff0e90f72eb3278da64cc8efd4a79e00c4c8fdb074761aa9eccbd1121ae0f2d571fd6a55e2603bfb0c8ae746b7b63d3583bfa07",
+      "public_key": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+      "backend": "cryptography"
+    },
+    "producer": {
+      "module": "muz.executor.gate.approve",
+      "code_sha256": "de28daa8084e6610caff31f7b8b65238b62bf60b757d1786128312ac0159eba9"
+    },
+    "parents": [],
+    "id": "24f701d0c156413c85838f0a3bc99c72",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "e9fce5da3648837ba3ceca2c79bad4e17213301e65bdf4c5d0b1c1d5f26c513b"
+  },
+  {
+    "schema": "muz.execution_receipt/1",
+    "payload": {
+      "plan_sha256": "5990987cb1b8d801891a5e0d4f38e37c77f7718b6a90b45c1919428d8e95aaba",
+      "status": "done",
+      "evidence": {
+        "pdf": "c4a17912d38f_negocjowac.pdf",
+        "pdf_sha256": "461717c281d100294129f1d20a1fd0d32a48dafdf34eea7ea9ce4a68ee2e088b",
+        "eml": "c4a17912d38f_negocjowac.eml",
+        "eml_sha256": "cedd1214215a4196b74cbb258dcbadef33b91f2bbc6fbb7bf4692fa972fa239e",
+        "template": "prosba_o_obnizke_v0.1.txt",
+        "template_sha256": "35ada1c093f07a384c380a3d574cfd34930113e8f8353a024a1a58001b416dbe",
+        "note": "pismo czeka w folderze nadawczym: wyslij ze swojej skrzynki albo wydrukuj"
+      },
+      "finished_at": "2026-09-26T06:49:05+00:00"
+    },
+    "producer": {
+      "module": "LetterExecutor",
+      "code_sha256": "610c8694ddf7156107fc36c64a1bd4b5edc7e59feefc7da9cdd170da181ca723"
+    },
+    "parents": [],
+    "id": "74441b68e7934ca88618f10554a0ea56",
+    "created_at": "2026-09-26T06:49:05+00:00",
+    "payload_sha256": "d3d4c0d5f954cf6bd97de8c80a27ddb4f0a44c85f0235e9b9ac9fc75485037d3"
+  }
+]

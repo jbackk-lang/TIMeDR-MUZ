@@ -1,0 +1,17 @@
+{
+  "host": "moje.operator.example",
+  "url": "https://moje.operator.example/rezygnacja",
+  "version": "0.1",
+  "note": "Przyklad przepisu formularza. Selektory ustala sie dla konkretnego dostawcy i wersjonuje.",
+  "fields": [
+    {
+      "selector": "#numer-umowy",
+      "value_key": "numer_umowy"
+    },
+    {
+      "selector": "#imie-nazwisko",
+      "value_key": "imie_nazwisko"
+    }
+  ],
+  "submit": "#wyslij"
+}

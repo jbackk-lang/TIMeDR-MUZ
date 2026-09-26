@@ -1,0 +1,14 @@
+{miejscowosc}, {data}
+
+{imie_nazwisko}
+{adres}
+
+{kontrahent}
+{adres_kontrahenta}
+
+Dotyczy: umowy nr {numer_umowy}
+
+Od {miesiac_zmiany} opłata wzrosła z {kwota_przed} zł do {kwota_po} zł ({zmiana}). Proszę o przedstawienie oferty, która przywróci dotychczasowy poziom opłaty albo obniży ją przy tym samym zakresie usługi.
+
+Z poważaniem
+{imie_nazwisko}
