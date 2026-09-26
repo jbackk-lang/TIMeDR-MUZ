@@ -246,3 +246,61 @@ def load_cpi(path) -> dict[str, float]:
     text = _read_text(Path(path))
     reader = csv.DictReader(io.StringIO(text), delimiter=";" if ";" in text.splitlines()[0] else ",")
     return {row["miesiac"].strip(): float(row["cpi_rr"].replace(",", ".")) / 100.0 for row in reader}
+
+
+# ---------------------------------------------------------------------------
+# Rozpoznawanie naglowka i propozycja mapowania (dla GUI)
+# ---------------------------------------------------------------------------
+
+GUESS = {
+    "date": ("data operacji", "data transakcji", "data księgowania", "data ksiegowania", "data"),
+    "amount": ("kwota operacji", "kwota transakcji", "kwota"),
+    "counterparty": ("nadawca / odbiorca", "nadawca/odbiorca", "odbiorca", "nadawca", "kontrahent", "nazwa"),
+    "description": ("tytuł", "tytul", "opis operacji", "opis"),
+    "currency": ("waluta",),
+    "balance": ("saldo po operacji", "saldo po transakcji", "saldo"),
+}
+
+
+def _split_line(line: str) -> tuple[list[str], str]:
+    delim = max(";,\t", key=line.count)
+    return [c.strip().strip('"') for c in line.split(delim)], delim
+
+
+def _looks_like_date(text: str) -> bool:
+    try:
+        parse_date(text)
+        return True
+    except ValueError:
+        return False
+
+
+def detect_header(path) -> tuple[int, list[str]]:
+    """Zwraca (numer wiersza naglowka, nazwy kolumn): pierwszy wiersz z >= 4 polami bez dat,
+    po ktorym nastepuje wiersz z data. Wiersze przed naglowkiem (preambula banku) sa pomijane."""
+    lines = _read_text(Path(path)).splitlines()
+    for i, line in enumerate(lines[:60]):
+        cols, _ = _split_line(line)
+        named = [c for c in cols if c]
+        if len(named) < 4 or any(_looks_like_date(c) for c in named):
+            continue
+        for nxt in lines[i + 1: i + 4]:
+            fields, _ = _split_line(nxt)
+            if any(_looks_like_date(f) for f in fields if f):
+                return i, cols
+    raise ValueError("nie rozpoznano wiersza naglowka (brak wiersza z nazwami kolumn przed wierszami z datami)")
+
+
+def guess_mapping(columns: list[str]) -> dict:
+    """Propozycja mapowania po nazwach kolumn; uzytkownik zatwierdza ja w GUI."""
+    low = {c.lower(): c for c in columns if c}
+    out: dict[str, str] = {}
+    used: set[str] = set()
+    for key, patterns in GUESS.items():
+        for pat in patterns:
+            hit = next((orig for l, orig in low.items() if pat in l and orig not in used), None)
+            if hit:
+                out[key] = hit
+                used.add(hit)
+                break
+    return out

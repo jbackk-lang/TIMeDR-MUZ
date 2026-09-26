@@ -6,9 +6,12 @@ Stan: prototyp etapów 0–1. Etap 0 (tylko odczyt) działa na wyciągach z plik
 
 ## Szybki start (etap 0)
 
+Dwuklik na `run.bat` otwiera okno: wybierz wyciąg (CSV albo MT940), sprawdź dopasowanie kolumn i kliknij „Uruchom analizę”. Mapowanie zapisuje się w `mapowanie.json`, a raport pokazuje się w oknie i w `wyniki/raport_etap0.md`. Błąd zostaje w oknie, a pełny ślad w `wyniki/blad.txt`.
+
+Z konsoli:
+
 ```powershell
 pip install numpy
-copy mapowanie_przyklad.json mapowanie.json   # wpisz nazwy kolumn swojego banku
 python -m muz run --in wyciag.csv --mapping mapowanie.json --out wyniki
 python -m muz verify --log wyniki/audit.jsonl
 ```

@@ -103,3 +103,14 @@ def test_gus_bdl_requires_allowed_host_and_api_path():
     seen = {}
     gus.fetch_bdl("/api/v1/data", fetcher=lambda u, a: seen.setdefault("u", (u, a)) and b"")
     assert seen["u"][0].startswith("https://bdl.stat.gov.pl/api/") and seen["u"][1] == frozenset({"bdl.stat.gov.pl"})
+
+
+def test_detect_header_and_guess_mapping(tmp_path):
+    p = _csv(tmp_path, 3)
+    idx, cols = adapter.csv_import.detect_header(p)
+    assert idx == 3 and cols[0] == "Data operacji"
+    m = adapter.csv_import.guess_mapping(cols)
+    assert m == {"date": "Data operacji", "amount": "Kwota", "counterparty": "Nadawca / Odbiorca",
+                 "description": "Tytuł", "currency": "Waluta", "balance": "Saldo po operacji"}
+    recs = adapter.load_csv(p, m, SALT)
+    assert len(recs) > 0
