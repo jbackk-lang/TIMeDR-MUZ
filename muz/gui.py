@@ -116,7 +116,8 @@ class App(tk.Tk):
     def _work(self, mapping_path):
         out = REPO / "wyniki"
         try:
-            pipeline.run([self.path], mapping_path, out)
+            cpi = REPO / "dane" / "cpi.csv"
+            pipeline.run([self.path], mapping_path, out, cpi_path=cpi if cpi.exists() else None)
             report = (out / "raport_etap0.md").read_text(encoding="utf-8")
             self.after(0, self._done, report, None)
         except Exception as exc:  # noqa: BLE001

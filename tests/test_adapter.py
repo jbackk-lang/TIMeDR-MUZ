@@ -114,3 +114,17 @@ def test_detect_header_and_guess_mapping(tmp_path):
                  "description": "Tytuł", "currency": "Waluta", "balance": "Saldo po operacji"}
     recs = adapter.load_csv(p, m, SALT)
     assert len(recs) > 0
+
+
+def test_parse_gus_monthly_csv_yoy_only():
+    raw = ("Nazwa zmiennej;Jednostka terytorialna;Sposób prezentacji;Rok;Miesiąc;Wartość;Flaga\n"
+           "Ogółem;Polska;Analogiczny miesiąc poprzedniego roku = 100;2025;1;104,9;\n"
+           "Ogółem;Polska;Poprzedni miesiąc = 100;2025;1;101,0;\n"
+           "Ogółem;Polska;Analogiczny miesiąc poprzedniego roku = 100;2025;2;104,9;\n").encode("cp1250")
+    cpi = gus.parse_gus_monthly_csv(raw)
+    assert cpi == {"2025-01": pytest.approx(0.049), "2025-02": pytest.approx(0.049)}
+
+
+def test_parse_gus_unknown_layout_raises():
+    with pytest.raises(ValueError):
+        gus.parse_gus_monthly_csv("a;b;c\n1;2;3\n".encode())
