@@ -15,6 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from . import pipeline
 from .adapter.csv_import import detect_header, guess_mapping
+from .report import plain_text
 
 REPO = Path(__file__).resolve().parents[1]
 FIELDS = [("date", "Data operacji *"), ("amount", "Kwota *"), ("counterparty", "Kontrahent *"),
@@ -68,7 +69,8 @@ class App(tk.Tk):
                 pass
 
     def choose(self):
-        f = filedialog.askopenfilename(title="Wyciąg z banku",
+        start = REPO / "dane" if (REPO / "dane").is_dir() else REPO
+        f = filedialog.askopenfilename(parent=self, title="Wyciąg z banku", initialdir=str(start),
                                        filetypes=[("Wyciągi", "*.csv *.txt *.sta *.mt940 *.940"), ("Wszystkie", "*.*")])
         if not f:
             return
@@ -83,13 +85,14 @@ class App(tk.Tk):
         try:
             _, self.columns = detect_header(self.path)
         except Exception as exc:  # noqa: BLE001 - pokazujemy uzytkownikowi, okno zostaje
-            messagebox.showerror("Nie rozpoznano pliku", str(exc))
+            messagebox.showerror("Nie rozpoznano pliku", str(exc), parent=self)
             return
         guess = guess_mapping(self.columns)
         options = [""] + [c for c in self.columns if c]
         for key, cb in self.combos.items():
             cb["values"] = options
-            if self.vars[key].get() not in options:
+            current = self.vars[key].get()
+            if not current or current not in options:  # puste albo z innego banku -> propozycja
                 self.vars[key].set(guess.get(key, ""))
         self.run_btn.config(state="normal")
         self.status.config(text="Sprawdź dopasowanie kolumn i kliknij „Uruchom analizę”.")
@@ -102,7 +105,7 @@ class App(tk.Tk):
             mapping = {k: v.get() for k, v in self.vars.items() if v.get()}
             missing = [label for key, label in FIELDS if key in REQUIRED and key not in mapping]
             if missing:
-                messagebox.showwarning("Brak kolumn", "Wybierz kolumny: " + ", ".join(missing))
+                messagebox.showwarning("Brak kolumn", "Wybierz kolumny: " + ", ".join(missing), parent=self)
                 return
             mapping_path = REPO / "mapowanie.json"
             mapping_path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -127,10 +130,10 @@ class App(tk.Tk):
         if exc is not None:
             self.status.config(text="Błąd — szczegóły w wyniki\\blad.txt")
             self.text.insert("end", f"Błąd: {exc}\n\nPełny ślad: {REPO / 'wyniki' / 'blad.txt'}")
-            messagebox.showerror("Błąd analizy", str(exc))
+            messagebox.showerror("Błąd analizy", str(exc), parent=self)
             return
         self.status.config(text=f"Gotowe. Raport: {REPO / 'wyniki' / 'raport_etap0.md'}")
-        self.text.insert("end", report)
+        self.text.insert("end", plain_text(report))
 
 
 def main():

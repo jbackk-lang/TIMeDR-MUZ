@@ -77,3 +77,39 @@ def render(*, streams, frames, s_phases, bmeta, b_phases, calib, res, hard, cpi_
     L.append("Sygnały TIMDR są tu diagnostyką obok prostej reguły „r/r ponad CPI + 5 pp”. "
              "Zgodnie z planem nie wpływają na decyzje, dopóki nie przejdą pre-rejestrowanego testu P1.\n")
     return "\n".join(L)
+
+
+def plain_text(md: str) -> str:
+    """Raport Markdown -> czytelny tekst do okna: wyrownane tabele, naglowki bez '#', bez '**' i '```'."""
+    out: list[str] = []
+    table: list[list[str]] = []
+
+    def flush():
+        if not table:
+            return
+        widths = [max(len(r[i]) if i < len(r) else 0 for r in table) for i in range(max(map(len, table)))]
+        for n, r in enumerate(table):
+            out.append("  ".join(c.ljust(widths[i]) for i, c in enumerate(r)).rstrip())
+            if n == 0:
+                out.append("  ".join("-" * w for w in widths))
+        table.clear()
+
+    for line in md.splitlines():
+        s = line.strip()
+        if s.startswith("|") and s.endswith("|"):
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if all(set(c) <= {"-", ":", " "} and c for c in cells):
+                continue  # wiersz separatora Markdown
+            table.append(cells)
+            continue
+        flush()
+        if s.startswith("```"):
+            continue
+        if s.startswith("#"):
+            title = s.lstrip("#").strip()
+            out.append(title.upper() if s.startswith("# ") else title)
+            out.append("=" * len(title) if s.startswith("# ") else "-" * len(title))
+            continue
+        out.append(line.replace("**", "").replace("`", ""))
+    flush()
+    return "\n".join(out)

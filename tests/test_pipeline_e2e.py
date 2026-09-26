@@ -65,3 +65,11 @@ def test_cli_verify(files, capsys):
     audit.append(files / "a.jsonl", "e", {})
     assert main(["verify", "--log", str(files / "a.jsonl")]) == 0
     assert "poprawny" in capsys.readouterr().out
+
+
+def test_plain_text_report_aligns_tables():
+    from muz.report import plain_text
+    t = plain_text("# Tytuł\n\n| A | Bbb |\n| --- | --- |\n| 1 | 2 |\n\n**x** `y`")
+    lines = t.splitlines()
+    assert lines[0] == "TYTUŁ" and "|" not in t and "**" not in t
+    assert lines[3].startswith("A  Bbb") and lines[5].startswith("1  2")

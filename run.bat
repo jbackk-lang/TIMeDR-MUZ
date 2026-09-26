@@ -8,6 +8,7 @@ set PY=python
 where python >nul 2>nul || set PY=py
 
 if "%~1"=="" (
+  echo Uruchamiam okno TIMeDR-MUZ, to moze potrwac kilka sekund...
   %PY% -m muz.gui
   if errorlevel 1 (
     echo.
