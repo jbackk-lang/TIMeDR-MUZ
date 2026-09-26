@@ -28,7 +28,7 @@ from ..sim.generator import generate_package
 from ..sim.teacher import teacher_action
 from .features import FEATURE_NAMES, build_features
 from .mlp import MLP, log_loss
-from .policy import rule_policy
+from .policy import amount_12m_ago, rule_policy
 
 A_IDX = {a: i for i, a in enumerate(ACTIONS)}
 
@@ -60,7 +60,7 @@ def package_samples(pkg, th: dict, dec: dict, cpi: dict | None) -> list[dict]:
             cpi_m = (cpi or {}).get(f.month)
             x = build_features(fs[: i + 1], phase, s.contract, b.state if b else None, b.M if b else None,
                                cpi_m, income)
-            y = teacher_action(amount_gr=f.amount_gr, amount_12m_ago_gr=fs[i - 12].amount_gr, cpi_yoy=cpi_m,
+            y = teacher_action(amount_gr=f.amount_gr, amount_12m_ago_gr=amount_12m_ago(fs[: i + 1]), cpi_yoy=cpi_m,
                                contract=s.contract, income_month_gr=income, cfg=dec)
             out.append({"x": x, "y": A_IDX[y], "package": pkg.package_id, "quintile": pkg.quintile,
                         "category": (s.contract or {}).get("category", "inne"), "month": f.month,

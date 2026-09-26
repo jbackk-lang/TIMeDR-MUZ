@@ -78,7 +78,7 @@ class Executor(Protocol):
 2. **Sygnały** — anomalia (mediana ± 3·MAD, pełne okno 12 próbek), defekt (zmiana względna > 10%), skręt (zmiana znaku nachylenia regresji na 3 próbkach, gdy |nachylenie| > 5% poziomu), rezonans M (≥ 3 strumienie ze zdarzeniem w miesiącu), baseline „r/r > CPI + 5 pp”.
 3. **META-DYNAMICS** — Λ, τ, ρ, J i `M` dla budżetu; od progów v0.2 J = korelacja Spearmana zmian kosztów r/r z CPI r/r (12 miesięcy, zakres −1…1), a nachylenie regresji zostaje w raporcie tylko opisowo; brak CPI daje NaN, nie zero; raport `meta_validator` z hashem w `MetaState`.
 4. **Faza** — reguły z tabeli dokumentu, histereza (wyjście po 2 okresach), percentyle z pierwszej połowy historii, INCONCLUSIVE przy < 24 miesiącach albo zapadniętym percentylu, twarda reguła salda.
-5. **Propozycja** — polityka regułowa (brak etykiet) albo MLP z rejestru; bramka fazy; wstrzymanie poniżej 0,6.
+5. **Propozycja** — od decyzji v0.3 polityka budżetowa: te same jawne reguły, którymi etykietowane są pakiety budżetów (podwyżka ponad CPI + 5 pp i roczny koszt ≥ 3% miesięcznego dochodu; czynsz i strumienie bez potwierdzonej umowy — zostawić; potem negocjować / anulować / zmienić wg kategorii i historii negocjacji). Kwota sprzed roku jest brana z tego samego miesiąca, nie z indeksu. Potem bramka fazy (akcja niedozwolona w fazie → zostawić, z powodem w polu `note`). Polityka regułowa v0.1 zostaje tylko do porównań. mini-AI nie tworzy planów.
 6. **Weryfikacja** — `verify_proposal()`: rekordy źródłowe (hashe surowych transakcji, CPI, umowa), sprzeczność, komplet danych dla „anulować”, świeżość 7 dni, zakazane twierdzenia; renderer deterministyczny; parafraza tylko przez `gate_candidate`.
 7. **Bramka** — `make_plan()` (plan_sha256), `approve()` (podpis Ed25519, ważność 15 minut, PIN dla L2), `verify_approval()` po stronie wykonawcy.
 8. **Wykonanie** — wykonawca sprawdza podpis, hash planu, poziom i `allowed_hosts`.
@@ -99,6 +99,7 @@ CLI: `run` (etap 0, raport), `propose` (kolejka planów), `keygen`, `setpin`, `a
 | `test_security.py` | brak sieci, `check_host`, dziennik wykrywa zmianę i usunięcie wpisu, AES-256-GCM i manipulacja szyfrogramem |
 | `test_messages.py` | 10 schematów, koperta, rodzice, manipulacja treścią, nieznana wersja |
 | `test_sim_train.py` | udziały GUS sumują się do 100, generator deterministyczny, dochód rośnie z kwintylem, istotność podwyżki zależy od dochodu, reguły nauczyciela wg kategorii, 42 cechy bez fazy stabilnej, rejestracja z flagą `synthetic` i odmowa użycia do planów, sekcja cienia w raporcie |
+| `test_policy_consistency.py` | decyzja v0.3 zmienia tylko politykę planów; na pakietach budżetów każda propozycja i każdy plan równa się polityce budżetowej po bramce fazy, brak planów dla czynszu i strumieni bez umowy, pismo podaje kwotę sprzed roku, „zmienić” bez docelowego planu kończy się jasnym powodem; przykładowy wyciąg daje jeden plan (Orange) |
 | `test_pipeline_e2e.py` | raport etapu 0 i dziennik; pełny przepływ do pokwitowania na strumieniu z podwyżką 89 → 119 zł |
 
 Wszystkie testy działają na danych syntetycznych (`tests/synth.py`). Test P1 na danych syntetycznych sprawdza mechanikę testu, a nie tezę, że sygnały TIMDR pomagają w finansach. Tę tezę rozstrzyga dopiero bramka P1 na historii użytkownika.
@@ -145,7 +146,7 @@ Dokument nie podaje tych wartości; są zamrożone w `prereg/` i wymagają pre-r
 - okno anomalii: wymagane pełne 12 próbek (krótsza historia dawała fałszywe alarmy na danych syntetycznych),
 - próg skrętu: 5% mediany poziomu strumienia,
 - progi ρ domyślne przy INCONCLUSIVE: 0,25 (przejściowa) i 0,5 (krytyczna),
-- polityka regułowa (`muz_decision_v0.1.json`) i margines wyboru modelu 0,05 w log-loss,
+- polityka planów: v0.1 reguła „defekt albo r/r ponad CPI → negocjować”; od v0.3 polityka budżetowa (`muz_decision_v0.3.json`, sekcja `budget_policy`, reguły z sekcji `teacher` identyczne jak w v0.2 — sprawdza to test); margines wyboru modelu 0,05 w log-loss,
 - 40 cech mini-AI (lista w `muz/mini_ai/features.py`),
 - definicja kanału J: v0.1 nachylenie regresji (bez ograniczeń, walidator META zgłosił wartości poza [0,1]); v0.2 korelacja Spearmana w [−1, 1]. Obie wersje progów są zamrożone w `FROZEN.json`, aktywna jest v0.2.
 
@@ -167,6 +168,8 @@ Na etapie 0 nie ma etykiet (decyzji użytkownika), więc mini-AI uczy się na **
 
 **Skrót wykryty poza rozkładem.** Pierwsza wersja generatora dawała umowy bez daty końca tylko dla czynszu i kredytu. Model miał 99,6% na teście syntetycznym, ale na przykładowym wyciągu (`dane/przyklad_wyciag_30mies.csv`, umowy testowe bez daty końca) zgadzał się z nauczycielem tylko w 18 z 31 próbek: nauczył się „brak daty końca → zostawić”. Po dodaniu umów na czas nieokreślony we wszystkich kategoriach zgodność wynosi 31/31. Test regresyjny: `test_generator_has_indefinite_contracts_outside_rent`.
 
-**Tryb cienia.** Model z flagą `synthetic` ładuje się tylko przez `require_supported(..., allow_synthetic=True)`. Raport etapu 0 ma sekcję „Cień mini-AI”, w której obok polityki regułowej widać, co zaproponowałby model. Plany wykonania nadal tworzy polityka regułowa; bez `allow_synthetic` rejestr zwraca `INCONCLUSIVE_SYNTHETIC_ONLY`.
+**Tryb cienia.** Model z flagą `synthetic` ładuje się tylko przez `require_supported(..., allow_synthetic=True)`. Raport etapu 0 ma sekcję „Cień mini-AI”, w której obok akcji z polityki budżetowej widać, co zaproponowałby model. mini-AI zostaje w trybie cienia na stałe: odtwarza politykę budżetową i nie uczy się preferencji. Plany tworzy polityka budżetowa; bez `allow_synthetic` rejestr zwraca `INCONCLUSIVE_SYNTHETIC_ONLY`. Preferencje użytkownik wyraża tylko w bramce (zatwierdzenie albo odrzucenie planu).
 
-**Czego to nie dowodzi.** Model odtwarza jawną regułę nauczyciela na danych, które sami wygenerowaliśmy. Nie jest to dowód, że jego decyzje są dobre dla prawdziwego budżetu. Do tworzenia planów potrzebny jest test P2 na decyzjach użytkownika.
+**Czego to nie dowodzi.** Model odtwarza jawną regułę nauczyciela na danych, które sami wygenerowaliśmy. Nie jest to dowód, że te decyzje są najlepsze dla prawdziwego budżetu — to ocenia użytkownik w bramce. P2 (dopuszczenie mini-AI do planów) nie jest częścią systemu; MUZ działa w pełni bez niego.
+
+**Test spójności (v0.3).** 150 pakietów budżetów przepuszczonych przez pełny przepływ do bramki (propozycja → weryfikacja → plan): 1023 strumienie, 365 poza fazą stabilną, 0 naruszeń (propozycja i plan zawsze równe polityce budżetowej po bramce fazy, żaden plan dla czynszu, każde pismo z kwotą sprzed roku). 59 planów „negocjować” (L1); 63 propozycje „zmienić” bez planu, bo syntetyczne umowy nie mają docelowego planu (`target_plan`); 5 razy bramka fazy zatrzymała „anulować” w fazie przejściowej. Polityka v0.1 zgadzała się z budżetową w 119 z 365 przypadków; w 194 działałaby tam, gdzie polityka budżetowa każe zostawić. Na przykładowym wyciągu v0.1 proponowała „negocjować” dla wszystkich czterech strumieni, w tym czynszu; v0.3 daje plan dla PGE (indeksacja +16,2% r/r), „zmienić” dla Orange (czeka na docelowy plan w umowie), a czynsz i Netflix zostawia.

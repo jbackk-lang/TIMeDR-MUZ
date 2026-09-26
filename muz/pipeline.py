@@ -29,7 +29,7 @@ from .mini_ai.policy import propose as mini_ai_propose
 REPO_DIR = PKG_DIR.parent
 PREREG = REPO_DIR / "prereg"
 THRESHOLDS = PREREG / "muz_thresholds_v0.2.json"
-DECISION = PREREG / "muz_decision_v0.2.json"
+DECISION = PREREG / "muz_decision_v0.3.json"
 
 
 class FrozenFileChanged(RuntimeError):
@@ -72,12 +72,22 @@ def prepare(inputs, mapping_path, cpi_path=None, contracts_path=None, salt_path=
     mapping = json.loads(Path(mapping_path).read_text(encoding="utf-8")) if mapping_path else {}
     salt = local_salt(Path(salt_path) if salt_path else REPO_DIR / ".muz_salt")
     records = _load_records(inputs, mapping, salt)
+    cpi = adapter.load_cpi(cpi_path) if cpi_path else None
+    contracts = adapter.load_contracts(contracts_path) if contracts_path else None
+    ctx = prepare_records(records, cpi, contracts, th=th, th_sha=th_sha, vendor_sha=vendor_sha)
+    ctx.update({"inputs": {Path(p).name: sha256_file(p) for p in inputs},
+                "mapping_sha256": sha256_file(mapping_path) if mapping_path else None,
+                "cpi_sha256": sha256_file(cpi_path) if cpi_path else None})
+    return ctx
+
+
+def prepare_records(records, cpi, contracts, *, th, th_sha, vendor_sha=None) -> dict:
+    """Strumienie + sygnaly + META + fazy z gotowych rekordow LSF (wspolne dla plikow i pakietow budzetow)."""
     n_raw = len(records)
     records = adapter.deduplicate(records)
-    cpi = adapter.load_cpi(cpi_path) if cpi_path else None
     streams = adapter.build_streams(records, th["recurring_min_payment_months"], th["monthly_min_coverage"])
-    if contracts_path:
-        adapter.attach_contracts(streams, adapter.load_contracts(contracts_path))
+    if contracts:
+        adapter.attach_contracts(streams, contracts)
     monthly = [s for s in streams if s.cadence == "monthly"]
     with no_network():
         frames = {s.stream_id: signals.stream_signals(s, th, cpi) for s in monthly}
@@ -95,10 +105,7 @@ def prepare(inputs, mapping_path, cpi_path=None, contracts_path=None, salt_path=
             "streams": streams, "monthly": monthly, "frames": frames, "res": res, "s_phases": s_phases,
             "bmeta": bmeta, "calib": calib, "hard": hard, "b_phases": b_phases, "validator_report": report,
             "income_month_gr": income,
-            "validator_sha": validator_sha,
-            "inputs": {Path(p).name: sha256_file(p) for p in inputs},
-            "mapping_sha256": sha256_file(mapping_path) if mapping_path else None,
-            "cpi_sha256": sha256_file(cpi_path) if cpi_path else None}
+            "validator_sha": validator_sha, "inputs": {}, "mapping_sha256": None, "cpi_sha256": None}
 
 
 # ---------------------------------------------------------------------------
@@ -156,16 +163,32 @@ def _write_csvs(out, ctx):
 # Przebieg jednego strumienia az do planu w bramce
 # ---------------------------------------------------------------------------
 
+def _change_basis(frames):
+    """Podstawa pisma zgodna z polityka budzetowa: kwota rok temu -> teraz; miesiac zmiany = najwiekszy wzrost
+    miesiac do miesiaca w tym okresie. Bez kwoty sprzed roku: poprzedni miesiac (jak w v0.1)."""
+    from .mini_ai.policy import _month_minus_12, amount_12m_ago
+    f = frames[-1]
+    base = amount_12m_ago(frames)
+    if not base:
+        prev = frames[-2] if len(frames) >= 2 else f
+        return f.month, prev.amount_gr, f.defect_rel
+    window = [x for x in frames if x.month >= _month_minus_12(f.month)]
+    jumps = [(b.amount_gr - a.amount_gr, b.month) for a, b in zip(window, window[1:])]
+    month = max(jumps)[1] if jumps and max(jumps)[0] > 0 else f.month
+    return month, base, f.amount_gr / base - 1.0
+
+
 def _letter_fields(action, stream, frames, profile, today):
     c = stream.contract or {}
-    f, prev = frames[-1], frames[-2] if len(frames) >= 2 else frames[-1]
+    f = frames[-1]
+    month, before_gr, rel = _change_basis(frames)
     return {"miejscowosc": profile.get("miejscowosc", ""), "data": today.isoformat(),
             "imie_nazwisko": profile.get("imie_nazwisko", ""), "adres": profile.get("adres", ""),
             "kontrahent": c.get("legal_name", stream.counterparty), "adres_kontrahenta": c.get("address", ""),
-            "numer_umowy": c.get("number", ""), "miesiac_zmiany": f.month,
-            "kwota_przed": f"{prev.amount_gr / 100:.2f}".replace(".", ","),
+            "numer_umowy": c.get("number", ""), "miesiac_zmiany": month,
+            "kwota_przed": f"{before_gr / 100:.2f}".replace(".", ","),
             "kwota_po": f"{f.amount_gr / 100:.2f}".replace(".", ","),
-            "zmiana": "" if f.defect_rel is None else f"{f.defect_rel * 100:+.1f}%".replace(".", ","),
+            "zmiana": "" if rel is None else f"{rel * 100:+.1f}%".replace(".", ","),
             "okres_wypowiedzenia": c.get("notice_period_months", ""), **({"nowy_plan": c["target_plan"]} if c.get("target_plan") else {})}
 
 
@@ -187,6 +210,8 @@ def build_plan(proposal, claim, stream, frames, profile, today) -> tuple[dict | 
                                       "to_email": channel.get("email", ""), "subject": f"{stream.counterparty}: {proposal['action']}"},
                              level=letters_mod.level_for(proposal["action"]))
     except (KeyError, GateError) as exc:
+        if "nowy_plan" in str(exc):
+            return None, "brak planu: do zmiany planu potrzebny jest docelowy plan - dodaj pole target_plan w umowie"
         return None, f"brak planu: {exc}"
     return plan, None
 
@@ -215,7 +240,8 @@ def run_stream(stream, frames, *, ctx, dec, dec_sha, profile, today: date, model
                            b_last.M if b_last else None, cpi_m, ctx.get("income_month_gr"))
         proposal = mini_ai_propose(stream_id=stream.stream_id, x=x, frame=frames[-1], phase=ps["phase"],
                                    contract=stream.contract, cfg=dec, policy_sha256=dec_sha, model=model,
-                                   weights_sha256=weights_sha, background=background)
+                                   weights_sha256=weights_sha, background=background, frames=frames, cpi_yoy=cpi_m,
+                                   income_month_gr=ctx["income_month_gr"])
         if proposal is None:
             return {"envelopes": envs, "plan": None, "reason": "faza stabilna: tylko monitoring"}
         e_prop = msg.make("muz.action_proposal/1", proposal, mini_ai_propose, [e_phase.id])
@@ -283,11 +309,11 @@ def shadow_section(ctx, models_dir: Path) -> str:
         rows = _shadow_rows(ctx, model, sha, dec, dec_sha)
     head = ("\n## Cień mini-AI (model syntetyczny, tylko podgląd)\n\n"
             "Model uczony na pakietach budżetów syntetycznych (GUS 2024). Pokazuje, co by zaproponował; nie tworzy planów "
-            "i nie wpływa na decyzje, dopóki nie przejdzie testu P2 na Twoich decyzjach. "
+            "i nie wpływa na decyzje: plany tworzy polityka budżetowa (reguły), którą model odtwarza. "
             f"Wagi: {weights.name}, sha256 {sha[:12]}….\n\n")
     if not rows:
         return head + "Brak strumieni poza fazą stabilną.\n"
-    return head + "| Kontrahent | Faza | Reguły | mini-AI | Pewność |\n| --- | --- | --- | --- | --- |\n" + "\n".join(rows) + "\n"
+    return head + "| Kontrahent | Faza | Plan (polityka budżetowa) | mini-AI | Pewność |\n| --- | --- | --- | --- | --- |\n" + "\n".join(rows) + "\n"
 
 
 def _shadow_rows(ctx, model, sha, dec, dec_sha) -> list[str]:
@@ -303,7 +329,8 @@ def _shadow_rows(ctx, model, sha, dec, dec_sha) -> list[str]:
         prop = mini_ai_propose(stream_id=s.stream_id, x=x, frame=fs[-1], phase=ps["phase"], contract=s.contract,
                                cfg=dec, policy_sha256=dec_sha, model=model, weights_sha256=sha)
         rule = mini_ai_propose(stream_id=s.stream_id, x=x, frame=fs[-1], phase=ps["phase"], contract=s.contract,
-                               cfg=dec, policy_sha256=dec_sha)
+                               cfg=dec, policy_sha256=dec_sha, frames=fs, cpi_yoy=(ctx["cpi"] or {}).get(fs[-1].month),
+                               income_month_gr=ctx["income_month_gr"])
         conf = f"{prop['confidence']:.2f}".replace(".", ",")
         note = " (niepewne)" if prop["abstained"] else ""
         rows.append(f"| {s.counterparty} | {ps['phase']} | {rule['action']} | {prop['action']}{note} | {conf} |")

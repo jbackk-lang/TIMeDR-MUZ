@@ -16,6 +16,8 @@ def files(tmp_path):
     (tmp_path / "map.json").write_text(json.dumps(synth.MAPPING, ensure_ascii=False), encoding="utf-8")
     (tmp_path / "umowy.json").write_text(json.dumps(synth.CONTRACTS, ensure_ascii=False), encoding="utf-8")
     (tmp_path / "profil.json").write_text(json.dumps(synth.PROFILE, ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "cpi.csv").write_text("miesiac;cpi_rr\n" + "".join(f"{y}-{m:02d};3,0\n" for y in range(2023, 2027)
+                                                                  for m in range(1, 13)), encoding="utf-8")
     return tmp_path
 
 
@@ -31,8 +33,9 @@ def test_full_flow_to_receipt(files):
     pytest.importorskip("reportlab")
     csv = synth.write_bank_csv(files / "w21.csv", synth.transactions(21))
     counts = pipeline.propose([csv], files / "map.json", files / "out", today=date(2025, 9, 15),
-                              profile_path=files / "profil.json", contracts_path=files / "umowy.json", salt_path=files / "salt")
-    assert counts["plany"] == 1
+                              profile_path=files / "profil.json", contracts_path=files / "umowy.json", salt_path=files / "salt",
+                              cpi_path=files / "cpi.csv")
+    assert counts["plany"] == 1   # tylko Orange: 89 -> 119 zl to +34% r/r i 360 zl rocznie przy dochodzie 8000 zl
     plan = json.loads((files / "out" / "kolejka" / "plany.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert plan["executor"] == "letter" and plan["level"] == "L1" and plan["action"] == "negocjowac"
     assert "89,00 zł do 119,00 zł" in plan["content"]["text"]
