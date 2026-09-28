@@ -184,3 +184,59 @@ def test_cztery_miesiace_pdf_oplaty_stale(tmp_path):
     assert stale.get("ORANGE POLSKA") == "telekom" and stale.get("PGE OBROT") == "energia"
     assert stale.get("NETFLIX COM") == "subskrypcja" and "BIEDRONKA WARSZAWA" in stale
     assert w.oplaty_info == ""
+
+
+def test_uklad_naglowek_i_szczegoly(tmp_path):
+    """Uklad jak w wielu bankach: linia operacji (data, identyfikator, rodzaj, kwota, saldo) + linie szczegolow
+    (data waluty, Lokalizacja:, rachunek i nazwa odbiorcy), stopka strony i komunikat banku z procentem."""
+    c, (W, H) = _canvas(tmp_path / "wyc.pdf")
+    y = H - 40
+    lines = [
+        "Saldo poprzednie -1 000,00",
+        "Data operacji Identyfikator operacji TYP OPERACJI Kwota operacji Saldo",
+        "02.03.2026 6522MX93920255427 ZAKUP PRZY UŻYCIU KARTY -49,86 -1 049,86",
+        "01.03.2026 Karta:425125******1111 Lokalizacja: F.H.U. WEPO WIELICZKA PL Nr ref:",
+        "74810316020181496233783",
+        "Kwota oryg.: 49,86 PLN",
+        "03.03.2026 6624FE97770065092 PRZELEW WYCHODZĄCY -236,83 -1 286,69",
+        "03.03.2026 518145811225 JAN TESTOWY UL. PROSTA 1, 00-001 MIASTO 03 1140",
+        "1238 2444 8009 7699 5033 T-MOBILE POLSKA S.A. UL.MARYNARSKA 12, 02-674",
+        "WARSZAWA Ref. wł. zlec.: 176897518896",
+        "Saldo do przeniesienia -1 286,69",
+        "Niniejszy dokument jest wydrukiem z systemu informatycznego banku.",
+        "01.03.2026 r. Rada Polityki Pieniężnej obniżyła stopę do 4,00%.",
+        "05.03.2026 6625KI38900175432 PRZELEW PRZYCH. SYSTEMAT. WPŁYW 1 874,70 588,01",
+        "05.03.2026 Świadczenie ZUS 180000C260506TRI/6/018410859",
+        "88102056040000010281401010 ZUS ul. Pędzichów 27 31-080 Kraków",
+        "06.03.2026 6614MX98530027287 PŁATNOŚĆ WEB - KOD MOBILNY -40,00 548,01",
+        "06.03.2026 Tel.:48700000000 Godz.16:57:51 Lokalizacja: https://www.lotto.pl/ Nr ref:",
+        "07.03.2026 6629UG92130000048 KREDYT - SPŁATA RATY -172,85 375,16",
+        "07.03.2026 KAPITAŁ: 0,00 ODSETKI: 172,85 05102028920000579602796290",
+    ]
+    c.setFont("F", 8)
+    for l in lines:
+        c.drawString(30, y, l); y -= 11
+    c.save()
+    recs = load_pdf(tmp_path / "wyc.pdf", SALT)
+    got = [(r.date, r.amount_gr, r.counterparty) for r in recs]
+    assert got == [(date(2026, 3, 2), -4986, "WEPO WIELICZKA"), (date(2026, 3, 3), -23683, "TMOBILE POLSKA"),
+                   (date(2026, 3, 5), 187470, "ZUS"), (date(2026, 3, 6), -4000, "LOTTO"),
+                   (date(2026, 3, 7), -17285, "KREDYT SPLATA RATY")]
+
+
+def test_podsumowanie_stanu(tmp_path):
+    from muz.adapter.pdf_import import read_summary
+    c, (W, H) = _canvas(tmp_path / "stan.pdf")
+    c.setFont("F", 9)
+    y = H - 40
+    for l in ["PODSUMOWANIE ŚRODKÓW", "Datawydruku 2026-09-28g.16:15", "Potwierdzeniestanurachunków",
+              "Rachunek Saldorachunku Środkidostępne Limitkredytowy",
+              "11222233334444555566667777 -5293,90PLN 206,10PLN 5500,00PLN", "KONTOOSOBISTE",
+              "Potwierdzeniestanukredytów", "Rachunek Przyznanakwota Pozostałakwotakapitałudospłaty",
+              "22333344445555666677778888 16157,34PLN 14571,72PLN", "POŻYCZKAGOTÓWKOWA"]:
+        c.drawString(30, y, l); y -= 12
+    c.save()
+    st = read_summary(tmp_path / "stan.pdf")
+    assert st["saldo_gr"] == -529390 and st["dostepne_gr"] == 20610 and st["limit_gr"] == 550000
+    assert st["kredyty"] == [{"nazwa": "Pożyczka Gotówkowa", "przyznana_gr": 1615734, "pozostalo_gr": 1457172}]
+    assert st["data"] == date(2026, 9, 28)

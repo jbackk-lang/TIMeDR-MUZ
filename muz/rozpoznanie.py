@@ -11,7 +11,8 @@ import re
 from .adapter.csv_import import _strip_accents
 
 KEYWORDS = {
-    "kredyt": ["RATA", "KREDYT", "POZYCZK", "SPLATA", "LEASING", "PROVIDENT", "WONGA", "VIVUS", "RATY"],
+    "kredyt": ["RATA", "KREDYT", "POZYCZK", "SPLATA", "LEASING", "PROVIDENT", "WONGA", "VIVUS", "RATY", "PAYPO",
+               "PLACE POZNIEJ", "TWISTO", "KLARNA", "ODSETK", "UJEMN", "NIEAUT", "LIMITU"],
     "czynsz": ["WSPOLNOTA", "SPOLDZIELNIA", "TBS", "ZARZADCA NIERUCH", "CZYNSZ", "NAJEM", "ZGM", "ZGN", "MZBM"],
     "energia": ["PGE", "TAURON", "ENEA", "ENERGA", "E ON", "EON ", "PGNIG", "INNOGY", "POLENERGIA", "FORTUM",
                 "VEOLIA", "MPWIK", "WODOCIAG", "MPEC", "CIEPLO", "GAZ "],
@@ -21,7 +22,7 @@ KEYWORDS = {
                     "AMAZON PRIME", "PRIME VIDEO", "TIDAL", "STORYTEL", "EMPIK GO", "LEGIMI", "ICLOUD", "MICROSOFT",
                     "ADOBE", "PLAYER PL", "SKYSHOWTIME", "MULTISPORT", "FITNESS", "SILOWNIA", "CITYFIT", "ZDROFIT"],
     "ubezpieczenie": ["PZU", "WARTA", "ALLIANZ", "HESTIA", "GENERALI", "UNIQA", "AVIVA", "LINK4", "COMPENSA",
-                      "NATIONALE", "AXA", "TUW", "UBEZPIECZ", "POLISA"],
+                      "NATIONALE", "AXA", "TUW", "UBEZPIECZ", "POLISA", "ZYCIE TOWARZYSTWO", "PKO ZYCIE", "TU "],
 }
 ORDER = ["kredyt", "czynsz", "subskrypcja", "ubezpieczenie", "energia", "media", "telekom"]
 

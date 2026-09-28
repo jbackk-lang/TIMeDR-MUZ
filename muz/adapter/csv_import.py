@@ -128,6 +128,10 @@ _TYPE = re.compile(r"^(?:PRZELEW(?: (?:WYCHODZACY|PRZYCHODZACY|NA RACHUNEK|NA TE
                    r"OPERACJA KARTA|STANDING ORDER|CARD PAYMENT|TRANSFER|PAYMENT|DEBIT|CREDIT|TYTUL|TYTULEM)\b[ :]*")
 
 
+_NOISE = {"NR", "FHU", "PHU", "PPHU", "FPHU", "PHPU", "FH", "PH", "PU", "FIRMA", "HANDLOWO", "USLUGOWA", "PRZEDSIEBIORSTWO",
+          "SKLEP", "STACJA", "PL", "POL", "KARTA", "KARTY", "GODZ"}
+
+
 def counterparty_from_description(text: str, aliases: dict[str, str] | None = None) -> str:
     """Kontrahent z opisu: najpierw etykieta (Odbiorca:, Nazwa:), potem opis bez rodzaju operacji, bez numerow kart,
     dat i numerow sklepow (ten sam sklep w roznych miesiacach ma rozne numery). Do 3 slow."""
@@ -146,9 +150,13 @@ def counterparty_from_description(text: str, aliases: dict[str, str] | None = No
             s = _TYPE.sub("", s.strip())
         stop = _STOP.search(s)
         s = s[:stop.start()] if stop and stop.start() > 0 else s
-    words = [w for w in re.sub(r"[^A-Z0-9 ]+", " ", s).split() if not re.search(r"\d", w)]
+    s = re.sub(r"\b((?:[A-Z]\.){2,}[A-Z]?)", lambda m: m.group(1).replace(".", ""), s)   # F.H.U. -> FHU
+    s = re.sub(r"\b([A-Z])-(?=[A-Z]{2})", r"\1", s)                                         # T-MOBILE -> TMOBILE
+    words = [w for w in re.sub(r"[^A-Z0-9 ]+", " ", s).split()
+             if not re.search(r"\d", w) and len(w) > 1 and w not in _NOISE]
     joined = " ".join(words[:8])
-    legal = re.search(r"\b(?:SPOLKA Z OGRANICZONA ODPOWIEDZIALNOSCIA|SPOLKA AKCYJNA|SP Z O O|SP ZOO|SPZOO|S A|SA|SP J|SP K)\b", joined)
+    legal = re.search(r"\b(?:SPOLKA Z OGRANICZONA ODPOWIEDZIALNOSCIA|SPOLKA AKCYJNA|SP Z O O|SP ZOO|SP OO|SPOO|SPZOO|S A|SA|"
+                      r"SP J|SP K)\b", joined)
     if legal and legal.start() > 0:                            # za forma prawna jest juz adres albo miasto
         joined = joined[:legal.start()]
     return normalize_counterparty(" ".join(joined.split()[:3]), aliases)

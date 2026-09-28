@@ -52,6 +52,7 @@ class Wynik:
     pdf_note: str | None = None
     hasla: list[Path] = field(default_factory=list)       # PDF-y z haslem: okno zapyta raz
     oplaty_info: str = ""                                  # dlaczego lista oplat stalych jest krotka/pusta
+    stan: dict | None = None                               # podsumowanie stanu rachunku i kredytow z banku (PDF)
     miesiace: int = 0
     transakcje: int = 0
     excel: dict = field(default_factory=dict)
@@ -139,7 +140,17 @@ def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = D
             if isinstance(exc, PdfPasswordNeeded):
                 w.hasla.append(f)
             elif isinstance(exc, PdfError):
-                w.problemy.append(str(exc))
+                from .adapter.pdf_import import read_summary
+                try:
+                    stan = read_summary(f)
+                except Exception:  # noqa: BLE001
+                    stan = None
+                if stan:
+                    if w.stan is None or stan["data"] >= w.stan["data"]:
+                        w.stan = stan
+                    w.pliki.append({"plik": f.name, "format": "podsumowanie stanu (saldo, limit, kredyty)"})
+                else:
+                    w.problemy.append(str(exc))
             else:
                 w.problemy.append(f"{f.name}: nie udało się wczytać ({exc})")
     if not records:
@@ -161,10 +172,41 @@ def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = D
     ctx["categories"] = categories
 
     profile = ust.profile(today)
-    od = rozpoznanie.overdraft(ctx["records"])
-    if od and not any(d.get("nazwa") == "debet na koncie" for d in profile["dlugi"]):
-        profile["dlugi"] = profile["dlugi"] + [{"nazwa": "debet na koncie", "kwota_zl": od / 100, "oprocentowanie_proc": 20}]
+    stan_note = None
+    user_saldo = ust.d.get("saldo")
+    if w.stan and (not user_saldo or date.fromisoformat(user_saldo["data"]) <= w.stan["data"]):
+        st = w.stan
+        rate = None
+        pdfs_st = sorted((f for f in files if f.suffix.lower() == ".pdf"), key=lambda f: f.stat().st_mtime)
+        for f in reversed(pdfs_st):
+            try:
+                from .adapter.pdf_import import statement_limit_rate
+                rate = statement_limit_rate(f)
+            except Exception:  # noqa: BLE001
+                rate = None
+            if rate:
+                break
+        profile["saldo_zl"] = st.get("dostepne_gr", st.get("saldo_gr", 0)) / 100
+        debts = [d for d in profile["dlugi"] if not d.get("z_banku")]
+        if st.get("saldo_gr", 0) < 0:
+            debts.append({"nazwa": "debet w koncie", "kwota_zl": -st["saldo_gr"] / 100,
+                          "oprocentowanie_proc": rate or 15, "z_banku": True})
+        for k in st["kredyty"]:
+            debts.append({"nazwa": k["nazwa"], "kwota_zl": k["pozostalo_gr"] / 100, "oprocentowanie_proc": 0, "z_banku": True})
+        profile["dlugi"] = debts
+        zl_ = lambda gr: f"{gr / 100:,.2f}".replace(",", " ").replace(".", ",") + " zł"
+        parts = [f"saldo {zl_(st['saldo_gr'])}" + (" (debet)" if st["saldo_gr"] < 0 else "")] if "saldo_gr" in st else []
+        if "dostepne_gr" in st:
+            parts.append(f"do wydania {zl_(st['dostepne_gr'])}")
+        parts += [f"{k['nazwa'].lower()}: zostało {zl_(k['pozostalo_gr'])}" for k in st["kredyty"]]
+        stan_note = f"stan z banku z {st['data']:%d.%m.%Y}: " + ", ".join(parts)
+    else:
+        od = rozpoznanie.overdraft(ctx["records"])
+        if od and not any(d.get("nazwa") == "debet na koncie" for d in profile["dlugi"]):
+            profile["dlugi"] = profile["dlugi"] + [{"nazwa": "debet na koncie", "kwota_zl": od / 100, "oprocentowanie_proc": 20}]
     w.plan = decisions.cycle_plan(ctx["records"], ctx["streams"], today=today, profile=profile, categories=categories)
+    if stan_note:
+        w.plan.notes = [n for n in w.plan.notes if "saldo z wyciągu" not in n] + [stan_note]
     cards = decisions.contract_decisions(ctx, dec=dec, dec_sha=dec_sha, today=today)
 
     for s in ctx["monthly"]:
@@ -188,7 +230,8 @@ def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = D
         cat = overrides.get(cp) or rozpoznanie.category(cp, [r.description for r in rs[-6:]])
         standing = re.search(r"ZLECENIE STALE|POLECENIE ZAPLATY|STANDING ORDER|DIRECT DEBIT",
                                          rozpoznanie._norm(text))
-        if n_m >= 2 or standing or cat not in ("inne",):
+        short = len(months) < 3
+        if standing or (cat != "inne" and (short or n_m >= 2)) or (short and n_m >= 2):
             w.oplaty.append({"kontrahent": cp, "kategoria": cat, "kwota_gr": -sorted(rs, key=lambda r: r.date)[-1].amount_gr,
                              "rozpoznana": True, "potwierdzona": bool(ust.d["potwierdzone"].get(cp)), "kandydat": True,
                              "miesiecy": n_m})
