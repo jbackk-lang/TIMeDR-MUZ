@@ -44,6 +44,32 @@ python -m muz verify --log wyniki/audit.jsonl
 
 Raport: `wyniki/raport_etap0.md`. Dane użytkownika (`*.csv`, `mapowanie.json`, `wyniki/`, `.muz_salt`) są w `.gitignore`.
 
+## Dane: dowolny wyciąg CSV i własny CSV MUZ
+
+Nikt z zewnątrz nie dopasowuje formatu — robi to MUZ lokalnie, po **zawartości** kolumn: daty (≥ 90% wierszy), kwota i saldo (saldo zmienia się dokładnie o kwotę), osobne kolumny obciążeń i uznań (wzajemnie się wykluczają), waluta, kontrahent i opis. Nazwy kolumn tylko rozstrzygają remisy. Po pierwszym imporcie format zapisuje się w `formaty.json` pod odciskiem nagłówka i **sam nadaje sobie nazwę** (z nazwy banku w preambule wyciągu, a gdy jej brak — z nazwy pliku). Następny wyciąg z tego banku wczytuje się bez pytań.
+
+```powershell
+python -m muz import --in wyciag_bank1.csv --in wyciag_bank2.csv   # -> wyniki/transakcje_muz.csv (jeden format)
+python -m muz formaty                                              # zapamiętane formaty
+python -m muz formaty --nazwa "historia" "Konto główne"            # zmiana nazwy
+python -m muz szablon --out gotowka.csv                            # pusty CSV MUZ do ręcznych wpisów
+```
+
+**CSV MUZ** (`data;kwota;waluta;kontrahent;opis;kategoria;saldo;zrodlo;id`, separator `;`, przecinek dziesiętny, UTF-8 z BOM — otwiera się w polskim Excelu). Kwota ujemna = wydatek. Tu dopisuje się gotówkę i rachunki spoza banku; kategoria jest dowolna. Plik CSV MUZ można podać wszędzie tam, gdzie wyciąg (`--in`), także w oknie `run.bat`. Wyciągi PDF: jeszcze nie.
+
+## Decyzje: co zrobić, ile i do kiedy
+
+```powershell
+python -m muz decyzje --in wyciag.csv --in gotowka.csv --profile profil.json --contracts umowy.json --out wyniki
+```
+
+Wynik `wyniki/decyzje.md` (w oknie `run.bat` — na górze raportu):
+
+1. **Do następnej wypłaty** — reguła z badania MUZ-SIM: rezerwa na opłaty, które zejdą przed wypłatą (według ich kalendarza), kwota na życie na dzień i tydzień, ile odłożyć na fundusz wydatków nieregularnych i bufor, ile nadpłacić na najdroższy dług. Przy długu lub braku zapasu — 80% zwykłych wydatków (poniżej 75% gospodarstwa w symulacji się łamały). Saldo, oszczędności i długi — w `profil.json` (wzór: `profil_przyklad.json`).
+2. **Karty działania dla umów** — gdy opłata rośnie istotnie ponad inflację: cel ceny (poprzednia), górna granica zgody (poprzednia + inflacja), plan B, termin (z okresu wypowiedzenia), co powiedzieć w dziale utrzymania klienta, na co się nie zgadzać, co zapisać. Negocjację prowadzisz Ty; pismo zamiast rozmowy przygotowuje `propose` (z Twoim zatwierdzeniem).
+
+MUZ niczego nie wykonuje sam i nie przenosi pieniędzy.
+
 ## Uczenie mini-AI na pakietach budżetów
 
 ```powershell

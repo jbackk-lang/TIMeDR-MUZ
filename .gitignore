@@ -8,3 +8,6 @@ dane/
 mapowanie.json
 .pytest_cache/
 modele/
+formaty.json
+profil.json
+umowy.json

@@ -14,13 +14,16 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from . import pipeline
+from .adapter.autodetect import ProfileStore, sniff
 from .adapter.csv_import import detect_header, guess_mapping
+from .adapter.muz_csv import is_muz_csv
 from .report import plain_text
 
 REPO = Path(__file__).resolve().parents[1]
-FIELDS = [("date", "Data operacji *"), ("amount", "Kwota *"), ("counterparty", "Kontrahent *"),
+FIELDS = [("date", "Data operacji *"), ("amount", "Kwota *"), ("debit", "Obciążenia (zamiast kwoty)"),
+          ("credit", "Uznania (zamiast kwoty)"), ("counterparty", "Kontrahent *"),
           ("description", "Tytuł / opis *"), ("currency", "Waluta"), ("balance", "Saldo po operacji")]
-REQUIRED = {"date", "amount", "counterparty", "description"}
+REQUIRED = {"date", "counterparty", "description"}
 
 
 class App(tk.Tk):
@@ -71,7 +74,7 @@ class App(tk.Tk):
     def choose(self):
         start = REPO / "dane" if (REPO / "dane").is_dir() else REPO
         f = filedialog.askopenfilename(parent=self, title="Wyciąg z banku", initialdir=str(start),
-                                       filetypes=[("Wyciągi", "*.csv *.txt *.sta *.mt940 *.940"), ("Wszystkie", "*.*")])
+                                       filetypes=[("Wyciągi i CSV MUZ", "*.csv *.txt *.sta *.mt940 *.940"), ("Wszystkie", "*.*")])
         if not f:
             return
         self.path = Path(f)
@@ -81,32 +84,46 @@ class App(tk.Tk):
             self.run_btn.config(state="normal")
             self.status.config(text="MT940: mapowanie kolumn niepotrzebne")
             return
+        if is_muz_csv(self.path):
+            self.map_frame.pack_forget()
+            self.det = None
+            self.run_btn.config(state="normal")
+            self.status.config(text="CSV MUZ: format własny, mapowanie niepotrzebne")
+            return
         self.map_frame.pack(fill="x", padx=8, after=self.file_label.master)
         try:
-            _, self.columns = detect_header(self.path)
+            self.det = sniff(self.path)
+            self.columns = self.det.columns
         except Exception as exc:  # noqa: BLE001 - pokazujemy uzytkownikowi, okno zostaje
             messagebox.showerror("Nie rozpoznano pliku", str(exc), parent=self)
             return
-        guess = guess_mapping(self.columns)
+        prof = ProfileStore(pipeline.FORMATS).get(self.det.fingerprint)
+        guess = prof["mapping"] if prof else self.det.mapping
         options = [""] + [c for c in self.columns if c]
         for key, cb in self.combos.items():
             cb["values"] = options
-            current = self.vars[key].get()
-            if not current or current not in options:  # puste albo z innego banku -> propozycja
-                self.vars[key].set(guess.get(key, ""))
+            self.vars[key].set(guess.get(key, "") if guess.get(key, "") in options else "")
         self.run_btn.config(state="normal")
-        self.status.config(text="Sprawdź dopasowanie kolumn i kliknij „Uruchom analizę”.")
+        self.status.config(text=(f"Rozpoznany format: „{prof['name']}” — kliknij „Uruchom analizę”." if prof else
+                                 f"Nowy format („{self.det.suggested_name}”): kolumny dopasowane po zawartości — "
+                                 f"sprawdź i kliknij „Uruchom analizę”; format zostanie zapamiętany."))
 
     def run(self):
         if self.path is None:
             return
         mapping_path = None
-        if self.path.suffix.lower() not in (".sta", ".mt940", ".940"):
+        if self.path.suffix.lower() not in (".sta", ".mt940", ".940") and not is_muz_csv(self.path):
             mapping = {k: v.get() for k, v in self.vars.items() if v.get()}
             missing = [label for key, label in FIELDS if key in REQUIRED and key not in mapping]
+            if "amount" not in mapping and not ("debit" in mapping and "credit" in mapping):
+                missing.append("Kwota (albo Obciążenia + Uznania)")
             if missing:
                 messagebox.showwarning("Brak kolumn", "Wybierz kolumny: " + ", ".join(missing), parent=self)
                 return
+            if getattr(self, "det", None) is not None:
+                if self.det.mapping.get("date_format") and mapping.get("date") == self.det.mapping.get("date"):
+                    mapping["date_format"] = self.det.mapping["date_format"]
+                ProfileStore(pipeline.FORMATS).learn(self.det, self.path.name, mapping=mapping)
             mapping_path = REPO / "mapowanie.json"
             mapping_path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False), encoding="utf-8")
         self.run_btn.config(state="disabled")
@@ -117,8 +134,17 @@ class App(tk.Tk):
         out = REPO / "wyniki"
         try:
             cpi = REPO / "dane" / "cpi.csv"
-            pipeline.run([self.path], mapping_path, out, cpi_path=cpi if cpi.exists() else None)
+            cpi_p = cpi if cpi.exists() else None
+            pipeline.run([self.path], mapping_path, out, cpi_path=cpi_p)
             report = (out / "raport_etap0.md").read_text(encoding="utf-8")
+            try:  # decyzje na gorze raportu; profil/umowy opcjonalne (profil.json, umowy.json obok run.bat)
+                from datetime import date as _d
+                prof, con = REPO / "profil.json", REPO / "umowy.json"
+                pipeline.decide([self.path], mapping_path, out, today=_d.today(), cpi_path=cpi_p,
+                                profile_path=prof if prof.exists() else None, contracts_path=con if con.exists() else None)
+                report = (out / "decyzje.md").read_text(encoding="utf-8") + "\n\n" + report
+            except Exception:  # noqa: BLE001 - decyzje nie blokuja raportu
+                (out / "blad_decyzje.txt").write_text(traceback.format_exc(), encoding="utf-8")
             self.after(0, self._done, report, None)
         except Exception as exc:  # noqa: BLE001
             out.mkdir(exist_ok=True)

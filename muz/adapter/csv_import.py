@@ -123,10 +123,18 @@ def _iban_hash(text: str, salt: bytes) -> str:
     return hashlib.sha256(salt + digits.encode()).hexdigest()[:16]
 
 
+def _amount(row: dict, mapping: dict) -> int:
+    """Kwota ze znakiem: jedna kolumna "amount" albo para "debit" (obciazenia) / "credit" (uznania)."""
+    if mapping.get("amount"):
+        return parse_amount_gr(row[mapping["amount"]])
+    deb, cre = row.get(mapping["debit"], ""), row.get(mapping["credit"], "")
+    return (abs(parse_amount_gr(cre)) if cre else 0) - (abs(parse_amount_gr(deb)) if deb else 0)
+
+
 def load_csv(path, mapping: dict, salt: bytes) -> list[LSFRecord]:
     """Czyta wyciag CSV wedlug mapowania kolumn.
 
-    mapping: {"date": ..., "amount": ..., "counterparty": ..., "description": ...,
+    mapping: {"date": ..., "amount": ... (albo "debit" + "credit"), "counterparty": ..., "description": ...,
               opcjonalnie "currency", "balance", "date_format", "aliases": {...}}
     """
     path = Path(path)
@@ -154,7 +162,7 @@ def load_csv(path, mapping: dict, salt: bytes) -> list[LSFRecord]:
         bal_col = mapping.get("balance")
         out.append(LSFRecord(
             date=parse_date(row[mapping["date"]], mapping.get("date_format")),
-            amount_gr=parse_amount_gr(row[mapping["amount"]]),
+            amount_gr=_amount(row, mapping),
             currency=(row.get(mapping.get("currency", ""), "") or "PLN").upper(),
             counterparty=cp,
             description=IBAN_RE.sub("[RACHUNEK]", desc_raw),

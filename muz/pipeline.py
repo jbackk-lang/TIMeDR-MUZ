@@ -55,26 +55,50 @@ def local_salt(path: Path) -> bytes:
     return salt
 
 
-def _load_records(inputs, mapping, salt):
+FORMATS = REPO_DIR / "formaty.json"
+
+
+def _load_records(inputs, mapping, salt, categories=None, info=None, formats_path=None):
+    """MT940; wlasny CSV MUZ; CSV z mapowaniem z pliku; bez mapowania -- samodopasowanie i profil formatu."""
+    from .adapter.autodetect import ProfileStore, resolve
+    from .adapter.muz_csv import is_muz_csv, load_muz_csv
     records = []
+    store = None
     for p in inputs:
+        name = Path(p).name
         if str(p).lower().endswith((".sta", ".mt940", ".940")):
             records += adapter.load_mt940(p, salt, mapping.get("aliases") if mapping else None)
-        else:
+            info is not None and info.append({"plik": name, "format": "MT940"})
+        elif is_muz_csv(p):
+            recs, cats = load_muz_csv(p, salt)
+            records += recs
+            if categories is not None:
+                categories.update(cats)
+            info is not None and info.append({"plik": name, "format": "CSV MUZ"})
+        elif mapping:
             records += adapter.load_csv(p, mapping, salt)
+            info is not None and info.append({"plik": name, "format": "mapowanie z pliku"})
+        else:
+            store = store or ProfileStore(formats_path or FORMATS)
+            m, i = resolve(p, store)
+            records += adapter.load_csv(p, m, salt)
+            info is not None and info.append({"plik": name, "format": i["profile"], "nowy": i["new"],
+                                              **({"dlaczego": i["reasons"]} if i["new"] else {})})
     return records
 
 
-def prepare(inputs, mapping_path, cpi_path=None, contracts_path=None, salt_path=None):
+def prepare(inputs, mapping_path, cpi_path=None, contracts_path=None, salt_path=None, formats_path=None):
     """Pobranie + strumienie + sygnaly + META + fazy budzetu (wspolne dla etapow 0 i 1)."""
     vendor_sha = verify_vendor()
     th, th_sha = load_frozen(THRESHOLDS)
     mapping = json.loads(Path(mapping_path).read_text(encoding="utf-8")) if mapping_path else {}
     salt = local_salt(Path(salt_path) if salt_path else REPO_DIR / ".muz_salt")
-    records = _load_records(inputs, mapping, salt)
+    categories, info = {}, []
+    records = _load_records(inputs, mapping, salt, categories, info, formats_path)
     cpi = adapter.load_cpi(cpi_path) if cpi_path else None
     contracts = adapter.load_contracts(contracts_path) if contracts_path else None
     ctx = prepare_records(records, cpi, contracts, th=th, th_sha=th_sha, vendor_sha=vendor_sha)
+    ctx.update({"categories": categories, "import_info": info})
     ctx.update({"inputs": {Path(p).name: sha256_file(p) for p in inputs},
                 "mapping_sha256": sha256_file(mapping_path) if mapping_path else None,
                 "cpi_sha256": sha256_file(cpi_path) if cpi_path else None})
@@ -335,3 +359,27 @@ def _shadow_rows(ctx, model, sha, dec, dec_sha) -> list[str]:
         note = " (niepewne)" if prop["abstained"] else ""
         rows.append(f"| {s.counterparty} | {ps['phase']} | {rule['action']} | {prop['action']}{note} | {conf} |")
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Wyrazne decyzje: przydzial do wyplaty + karty dzialania dla umow
+# ---------------------------------------------------------------------------
+
+def decide(inputs, mapping_path, out_dir, *, today: date, profile_path=None, cpi_path=None, contracts_path=None,
+           salt_path=None, log_path=None, formats_path=None) -> dict:
+    from . import decisions
+    ctx = prepare(inputs, mapping_path, cpi_path, contracts_path, salt_path, formats_path)
+    dec, dec_sha = load_frozen(DECISION)
+    profile = json.loads(Path(profile_path).read_text(encoding="utf-8")) if profile_path else {}
+    plan = decisions.cycle_plan(ctx["records"], ctx["streams"], today=today, profile=profile,
+                                categories=ctx.get("categories"))
+    cards = decisions.contract_decisions(ctx, dec=dec, dec_sha=dec_sha, today=today)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "decyzje.md").write_text(decisions.render(plan, cards), encoding="utf-8")
+    (out / "decyzje.json").write_text(decisions.to_json(plan, cards), encoding="utf-8")
+    summary = {"decyzje_umowy": len(cards), "tryb": plan.mode, "do_wyplaty_dni": plan.days,
+               "import": ctx.get("import_info"), "decision_sha256": dec_sha,
+               "outputs": {f.name: sha256_file(f) for f in (out / "decyzje.md", out / "decyzje.json")}}
+    audit.append(Path(log_path) if log_path else out / "audit.jsonl", "decyzje", summary)
+    return {"plan": plan, "cards": cards, "summary": summary}

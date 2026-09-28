@@ -1,0 +1,10 @@
+{
+  "imie_nazwisko": "Jan Przykładowy",
+  "adres": "ul. Przykładowa 1, 00-001 Warszawa",
+  "miejscowosc": "Warszawa",
+  "saldo_zl": 3200.00,
+  "oszczednosci_zl": 500.00,
+  "dlugi": [
+    {"nazwa": "karta kredytowa", "kwota_zl": 4000.00, "oprocentowanie_proc": 20, "rata_min_zl": 120.00, "dzien_raty": 25}
+  ]
+}

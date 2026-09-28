@@ -8,6 +8,10 @@
   python -m muz execute  --plans ... --plan-id ID --approval wyniki/kolejka/ID.approval.json --pubkey HEX --out wyniki
   python -m muz verify   --log wyniki/audit.jsonl
   python -m muz train    [--cpi dane/cpi.csv] [--packages 600] [--out modele/mini_ai_syntetyczny_v0.2]
+  python -m muz import   --in wyciag.csv [--in ...] [--out wyniki/transakcje_muz.csv]   (samodopasowanie formatu)
+  python -m muz szablon  --out moje_wydatki.csv                                         (pusty CSV MUZ do recznych wpisow)
+  python -m muz formaty  [--nazwa STARA_NAZWA_LUB_ODCISK NOWA]                          (zapamietane formaty bankow)
+  python -m muz decyzje  --in ... [--profile profil.json] [--contracts umowy.json] [--cpi dane/cpi.csv] --out wyniki [--today RRRR-MM-DD]
   python -m muz badanie  [--n 400] [--seed 20260929] [--scen S0,S1,S2] [--out wyniki/badanie_petla.json]
 """
 from __future__ import annotations
@@ -60,10 +64,62 @@ def main(argv=None) -> int:
     t_ = sub.add_parser("train")
     t_.add_argument("--cpi"); t_.add_argument("--packages", type=int)
     t_.add_argument("--out", default=str(pipeline.REPO_DIR / "modele" / "mini_ai_syntetyczny_v0.2"))
+    i_ = sub.add_parser("import", help="wczytaj wyciagi (samodopasowanie) i zapisz jeden CSV MUZ")
+    i_.add_argument("--in", dest="inputs", action="append", required=True)
+    i_.add_argument("--out", default=str(pipeline.REPO_DIR / "wyniki" / "transakcje_muz.csv"))
+    sub.add_parser("szablon", help="pusty CSV MUZ do recznych wpisow").add_argument("--out", required=True)
+    f_ = sub.add_parser("formaty", help="lista zapamietanych formatow; --nazwa zmienia nazwe")
+    f_.add_argument("--nazwa", nargs=2, metavar=("KTORY", "NOWA"))
+    d_ = sub.add_parser("decyzje", help="przydzial do wyplaty + karty dzialania (negocjacje, wypowiedzenia)")
+    d_.add_argument("--in", dest="inputs", action="append", required=True)
+    d_.add_argument("--mapping"); d_.add_argument("--cpi"); d_.add_argument("--contracts"); d_.add_argument("--profile")
+    d_.add_argument("--out", required=True); d_.add_argument("--today")
     b_ = sub.add_parser("badanie", help="symulacja zamknietej petli budzetu (MUZ-SIM v0.1)")
     b_.add_argument("--n", type=int, default=400); b_.add_argument("--seed", type=int, default=20260929)
     b_.add_argument("--scen", default="S0,S1,S2"); b_.add_argument("--out")
     a = ap.parse_args(argv)
+
+    if a.cmd == "import":
+        from .adapter.muz_csv import write_records
+        info = []
+        cats = {}
+        records = pipeline._load_records(a.inputs, {}, pipeline.local_salt(pipeline.REPO_DIR / ".muz_salt"), cats, info)
+        from .adapter import deduplicate
+        recs = deduplicate(records)
+        write_records(recs, a.out, cats)
+        for it in info:
+            print(f"{it['plik']}: format '{it['format']}'" + (" (nowy, zapamietany)" if it.get("nowy") else ""))
+            for k, v in (it.get("dlaczego") or {}).items():
+                print(f"   {k}: {v}")
+        print(f"{len(recs)} transakcji -> {a.out}")
+        return 0
+
+    if a.cmd == "szablon":
+        from .adapter.muz_csv import HEADER, write_template
+        write_template(a.out)
+        print(f"{a.out}: kolumny {';'.join(HEADER)}")
+        print("kwota ujemna = wydatek (np. -45,50), data RRRR-MM-DD, kategoria dowolna (np. jedzenie, paliwo)")
+        return 0
+
+    if a.cmd == "formaty":
+        from .adapter.autodetect import ProfileStore
+        store = ProfileStore(pipeline.FORMATS)
+        if a.nazwa:
+            fp = store.rename(a.nazwa[0], a.nazwa[1])
+            print(f"{fp}: nazwa '{a.nazwa[1]}'")
+        for fp, pr in store.data.items():
+            print(f"{fp}  {pr['name']:<30} kolumny: {len(pr['columns'])}, pliki: {len(pr['files'])}")
+        if not store.data:
+            print("brak zapamietanych formatow -- pierwszy import CSV zapisze format sam")
+        return 0
+
+    if a.cmd == "decyzje":
+        today = date.fromisoformat(a.today) if a.today else date.today()
+        cpi = a.cpi or (pipeline.REPO_DIR / "dane" / "cpi.csv")
+        r = pipeline.decide(a.inputs, a.mapping, a.out, today=today, profile_path=a.profile,
+                            cpi_path=cpi if Path(cpi).exists() else None, contracts_path=a.contracts)
+        print((Path(a.out) / "decyzje.md").read_text(encoding="utf-8"))
+        return 0
 
     if a.cmd == "badanie":
         from .badania.petla_run import main as badanie

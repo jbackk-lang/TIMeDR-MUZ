@@ -173,3 +173,13 @@ Na etapie 0 nie ma etykiet (decyzji użytkownika), więc mini-AI uczy się na **
 **Czego to nie dowodzi.** Model odtwarza jawną regułę nauczyciela na danych, które sami wygenerowaliśmy. Nie jest to dowód, że te decyzje są najlepsze dla prawdziwego budżetu — to ocenia użytkownik w bramce. P2 (dopuszczenie mini-AI do planów) nie jest częścią systemu; MUZ działa w pełni bez niego.
 
 **Test spójności (v0.3).** 150 pakietów budżetów przepuszczonych przez pełny przepływ do bramki (propozycja → weryfikacja → plan): 1023 strumienie, 365 poza fazą stabilną, 0 naruszeń (propozycja i plan zawsze równe polityce budżetowej po bramce fazy, żaden plan dla czynszu, każde pismo z kwotą sprzed roku). 59 planów „negocjować” (L1); 63 propozycje „zmienić” bez planu, bo syntetyczne umowy nie mają docelowego planu (`target_plan`); 5 razy bramka fazy zatrzymała „anulować” w fazie przejściowej. Polityka v0.1 zgadzała się z budżetową w 119 z 365 przypadków; w 194 działałaby tam, gdzie polityka budżetowa każe zostawić. Na przykładowym wyciągu v0.1 proponowała „negocjować” dla wszystkich czterech strumieni, w tym czynszu; v0.3 daje plan dla PGE (indeksacja +16,2% r/r), „zmienić” dla Orange (czeka na docelowy plan w umowie), a czynsz i Netflix zostawia.
+
+
+## 12. Samodopasowanie formatu, CSV MUZ i decyzje
+
+- `muz/adapter/autodetect.py` — rozpoznanie kolumn po zawartości (`sniff`), profile formatów (`ProfileStore`, `formaty.json`, klucz = sha256 nazw kolumn i separatora, nazwa z preambuły albo pliku), `resolve` — znany format bez pytań, nowy — rozpoznanie i zapis. Mapowanie poprawione w GUI nadpisuje profil; import z CLI nigdy nie zmienia mapowania znanego profilu.
+- `load_csv` przyjmuje kwotę jako jedną kolumnę albo parę `debit`/`credit`.
+- `muz/adapter/muz_csv.py` — format `muz.transakcje/1`: eksport (`write_records`), szablon (`write_template`), odczyt z kategoriami (`load_muz_csv`).
+- `muz/decisions.py` — przydział do następnej wypłaty (`cycle_plan`: dni wypłat z wpływów ≥ 50% największego z 90 dni, opłaty stałe = strumienie miesięczne z medianą dnia, fundusz = 80. percentyl sum 90-dniowych dużych wydatków spoza strumieni, potrzeba = średnia dzienna drobnych wydatków z 90 dni) i karty umów (`contract_decisions`: ta sama polityka i weryfikacja co etap 1; na listę dla człowieka trafiają też propozycje wstrzymane w bramce tylko z powodu wieku danych lub brakujących pól umowy — z ostrzeżeniem).
+- CLI: `import`, `szablon`, `formaty`, `decyzje`; `pipeline.decide()`; GUI: rozpoznany format w pasku stanu, decyzje nad raportem.
+- Testy: `tests/test_autodetect_muzcsv.py` (4 syntetyczne formaty: preambuła i cp1250, angielski i odwrócona kolejność, obciążenia/uznania, nazwy kolumn bez znaczenia), `tests/test_decisions.py`.
