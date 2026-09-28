@@ -136,3 +136,51 @@ def test_pdf_w_oknie_zarzadcy_i_haslo_raz(tmp_path):
     w2 = zarzadca.run(date(2024, 7, 2), ust, **kw)
     assert not w2.hasla and {p["plik"] for p in w2.pliki} == {"czerwiec.pdf", "zabezpieczony (z PDF).csv"}
     assert "12345678901" not in (tmp_path / "u.json").read_text(encoding="utf-8")
+
+
+def realistic_pdf(path, months):
+    """Opisy jak w prawdziwych PDF: rodzaj operacji na poczatku, numery kart i sklepow, forma prawna, miasto."""
+    c, (W, H) = _canvas(path)
+    y = H - 50
+    c.setFont("F", 8)
+    bal = 3000.0
+    rows = []
+    for m in range(1, months + 1):
+        rows += [(date(2026, m, 1), 5200.0, "PRZELEW PRZYCHODZĄCY PRACODAWCA SP. Z O.O. Tytuł: Wynagrodzenie"),
+                 (date(2026, m, 5), -89.0, "PRZELEW WYCHODZĄCY Orange Polska S.A. Tytuł: Abonament FV/" + str(m)),
+                 (date(2026, m, 7), -45.0, "ZLECENIE STAŁE NETFLIX.COM"),
+                 (date(2026, m, 9), -63.2 - m, f"PŁATNOŚĆ KARTĄ 4567 XXXX XXXX 1234 BIEDRONKA {1000 + m} WARSZAWA"),
+                 (date(2026, m, 20), -230.0 - m, "POLECENIE ZAPŁATY PGE Obrót S.A. faktura " + str(m))]
+    for d, amt, desc in rows:
+        bal += amt
+        c.drawString(30, y, d.strftime("%d.%m.%Y")); c.drawString(85, y, desc[:70])
+        c.drawRightString(500, y, _zl(amt)); c.drawRightString(570, y, _zl(bal)); y -= 12
+    c.save()
+    return path
+
+
+def _run(tmp_path, months):
+    from muz import zarzadca
+    from muz.ustawienia import Ustawienia
+    wy, dane = tmp_path / "wyciagi", tmp_path / "dane"
+    wy.mkdir(); dane.mkdir()
+    (dane / "cpi.csv").write_text("miesiac;cpi_rr\n2026-01;3,0\n", encoding="utf-8")
+    realistic_pdf(wy / "wyciag.pdf", months)
+    return zarzadca.run(date(2026, months, 25), Ustawienia(tmp_path / "u.json"), wyciagi=wy, dane=dane,
+                        wyniki=tmp_path / "wyniki", formats_path=tmp_path / "f.json", salt_path=tmp_path / "salt")
+
+
+def test_jeden_miesiac_pdf_mowi_dlaczego_i_pokazuje_prawdopodobne(tmp_path):
+    w = _run(tmp_path, 1)
+    assert "3 miesiącach" in w.oplaty_info and w.miesiace == 1
+    cats = {o["kontrahent"]: (o["kategoria"], o.get("kandydat")) for o in w.oplaty}
+    assert cats["ORANGE POLSKA"] == ("telekom", True)
+    assert cats["NETFLIX COM"] == ("subskrypcja", True) and cats["PGE OBROT"] == ("energia", True)
+
+
+def test_cztery_miesiace_pdf_oplaty_stale(tmp_path):
+    w = _run(tmp_path, 4)
+    stale = {o["kontrahent"]: o["kategoria"] for o in w.oplaty if not o.get("kandydat")}
+    assert stale.get("ORANGE POLSKA") == "telekom" and stale.get("PGE OBROT") == "energia"
+    assert stale.get("NETFLIX COM") == "subskrypcja" and "BIEDRONKA WARSZAWA" in stale
+    assert w.oplaty_info == ""

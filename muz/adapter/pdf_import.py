@@ -17,7 +17,8 @@ import re
 import tempfile
 from pathlib import Path
 
-from .csv_import import IBAN_RE, LSFRecord, _iban_hash, _strip_accents, load_csv, normalize_counterparty, parse_amount_gr
+from .csv_import import (IBAN_RE, LSFRecord, _iban_hash, _strip_accents, counterparty_from_description, load_csv,
+                         normalize_counterparty, parse_amount_gr)
 
 SKIP = re.compile(r"saldo (poczatkowe|koncowe|otwarcia|zamkniecia|na dzien|dostepne|ksiegowe)|suma (obciazen|uznan|wplywow|"
                   r"wydatkow)|razem|obroty|strona \d+|limit|oprocentowanie", re.I)
@@ -126,7 +127,7 @@ def _records_from_text(text: str, path: Path, salt: bytes) -> list[LSFRecord]:
         elif not signed:
             amt = abs(amt) if INCOME.search(_strip_accents(desc)) else -abs(amt)
         prev_bal = bal if bal is not None else prev_bal
-        cp = normalize_counterparty(" ".join(desc.split()[:3]))
+        cp = counterparty_from_description(desc)
         raw = f"{path.name}|{i}|{d}|{amt}|{desc}"
         out.append(LSFRecord(date=d, amount_gr=amt, currency="PLN", counterparty=cp,
                              description=IBAN_RE.sub("[RACHUNEK]", desc), iban_hash=_iban_hash(desc, salt),

@@ -11,6 +11,7 @@ Z pamieci (ustawienia.json, zapisywanej przez okno) bierze tylko to, czego nie m
 """
 from __future__ import annotations
 
+import re
 import shutil
 import string
 from dataclasses import dataclass, field
@@ -50,6 +51,9 @@ class Wynik:
     pdf_przydzial: Path | None = None
     pdf_note: str | None = None
     hasla: list[Path] = field(default_factory=list)       # PDF-y z haslem: okno zapyta raz
+    oplaty_info: str = ""                                  # dlaczego lista oplat stalych jest krotka/pusta
+    miesiace: int = 0
+    transakcje: int = 0
     excel: dict = field(default_factory=dict)
     raport: str = ""
     dane_do: date | None = None
@@ -168,6 +172,36 @@ def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = D
         w.oplaty.append({"kontrahent": s.counterparty, "kategoria": c.get("category", "inne"),
                          "kwota_gr": next((a for a in reversed(s.amounts_gr) if a > 0), 0),
                          "rozpoznana": c.get("inferred", True), "potwierdzona": c.get("confirmed_by_user", False)})
+
+    # za krotka historia: pokaz prawdopodobne oplaty stale (tylko do wgladu -- decyzje dopiero po 3 miesiacach)
+    recs = ctx["records"]
+    months = sorted({f"{r.date.year:04d}-{r.date.month:02d}" for r in recs})
+    w.miesiace, w.transakcje = len(months), len(recs)
+    known = {o["kontrahent"] for o in w.oplaty}
+    by_cp: dict[str, list] = {}
+    for r in recs:
+        if r.amount_gr < 0 and r.counterparty and r.counterparty not in known:
+            by_cp.setdefault(r.counterparty, []).append(r)
+    for cp, rs in sorted(by_cp.items()):
+        n_m = len({(r.date.year, r.date.month) for r in rs})
+        text = " ".join(r.description for r in rs[-3:])
+        cat = overrides.get(cp) or rozpoznanie.category(cp, [r.description for r in rs[-6:]])
+        standing = re.search(r"ZLECENIE STALE|POLECENIE ZAPLATY|STANDING ORDER|DIRECT DEBIT",
+                                         rozpoznanie._norm(text))
+        if n_m >= 2 or standing or cat not in ("inne",):
+            w.oplaty.append({"kontrahent": cp, "kategoria": cat, "kwota_gr": -sorted(rs, key=lambda r: r.date)[-1].amount_gr,
+                             "rozpoznana": True, "potwierdzona": bool(ust.d["potwierdzone"].get(cp)), "kandydat": True,
+                             "miesiecy": n_m})
+    stale = [o for o in w.oplaty if not o.get("kandydat")]
+    if not stale:
+        w.oplaty_info = (f"Wyciągi obejmują {len(months)} mies. ({months[0]} – {months[-1]}). Opłatę stałą potwierdzam, gdy "
+                         f"płacisz tej samej firmie w co najmniej 3 miesiącach — dodaj wyciągi z wcześniejszych miesięcy "
+                         f"(każdy PDF osobno albo jeden z dłuższego okresu)."
+                         if len(months) < 3 else
+                         "Nie znalazłem firmy, której płacisz co miesiąc. Jeśli jakaś opłata jest stała — ustaw jej "
+                         "kategorię poniżej.")
+        if any(o.get("kandydat") for o in w.oplaty):
+            w.oplaty_info += " Poniżej — prawdopodobne opłaty stałe (do sprawdzenia)."
 
     wyniki.mkdir(parents=True, exist_ok=True)
     pdfs, w.pdf_note = export_docs.decisions_pdfs(w.plan, cards, wyniki / "pdf")

@@ -93,6 +93,8 @@ class App(tk.Tk):
         nb.add(t2, text="Opłaty stałe")
         ttk.Label(t2, text="MUZ rozpoznał te opłaty sam. Jeśli kategoria jest zła — zaznacz wiersz i wybierz właściwą.",
                   foreground="#555").pack(anchor="w")
+        self.oplaty_info = ttk.Label(t2, text="", foreground="#a05a00", wraplength=900, justify="left")
+        self.oplaty_info.pack(anchor="w", pady=(2, 4))
         self.tree2 = ttk.Treeview(t2, columns=("k", "kat", "kw", "st"), show="headings", height=12, selectmode="browse")
         for c, label, width in (("k", "Komu płacisz", 420), ("kat", "Kategoria", 140), ("kw", "Ostatnio", 110), ("st", "", 140)):
             self.tree2.heading(c, text=label)
@@ -160,8 +162,11 @@ class App(tk.Tk):
         for s in w.sprawy:
             self.tree.insert("", "end", iid=s.id, values=(s.tytul, ACTION_LABEL.get(s.akcja, s.akcja), zl(s.rocznie_gr),
                                                           s.termin.strftime("%d.%m.%Y")))
+        self.oplaty_info.config(text=w.oplaty_info)
         for o in w.oplaty:
             st = "potwierdzona" if o["potwierdzona"] else ("rozpoznana" if o["rozpoznana"] else "ustawiona")
+            if o.get("kandydat"):
+                st = f"prawdopodobna ({o['miesiecy']} mies.)"
             self.tree2.insert("", "end", iid=o["kontrahent"], values=(o["kontrahent"], o["kategoria"], zl(o["kwota_gr"]), st))
         files = ", ".join(f"{p['plik']} ({p['format']})" for p in w.pliki)
         self.details.delete("1.0", "end")
@@ -170,7 +175,8 @@ class App(tk.Tk):
         self.excel_btn.config(state="normal")
         self.pdf_btn.config(state="normal" if w.pdf_przydzial else "disabled")
         n = len(w.sprawy)
-        self.status.config(text=f"Gotowe: {len(w.pliki)} plik(ów), dane do {w.dane_do:%d.%m.%Y}; "
+        self.status.config(text=f"Gotowe: {len(w.pliki)} plik(ów), {w.transakcje} transakcji z {w.miesiace} mies., "
+                                f"dane do {w.dane_do:%d.%m.%Y}; "
                                 f"spraw do załatwienia: {n}" + (f"; uwagi: {len(w.problemy)} (zakładka Szczegóły)" if w.problemy else ""))
 
     # ---------------------------------------------------------------- dane

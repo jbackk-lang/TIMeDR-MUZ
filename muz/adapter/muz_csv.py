@@ -15,7 +15,8 @@ import hashlib
 import io
 from pathlib import Path
 
-from .csv_import import IBAN_RE, LSFRecord, _iban_hash, _read_text, normalize_counterparty, parse_amount_gr, parse_date
+from .csv_import import (IBAN_RE, LSFRecord, _iban_hash, _read_text, counterparty_from_description, normalize_counterparty,
+                         parse_amount_gr, parse_date)
 
 HEADER = ["data", "kwota", "waluta", "kontrahent", "opis", "kategoria", "saldo", "zrodlo", "id"]
 SCHEMA = "muz.transakcje/1"
@@ -70,7 +71,7 @@ def load_muz_csv(path, salt: bytes) -> tuple[list[LSFRecord], dict[str, str]]:
             amt = parse_amount_gr(row["kwota"])
         except (KeyError, ValueError) as exc:
             raise ValueError(f"{path.name}, wiersz {n}: {exc}") from None
-        cp = normalize_counterparty(row.get("kontrahent", "")) or normalize_counterparty(" ".join(row.get("opis", "").split()[:3]))
+        cp = normalize_counterparty(row.get("kontrahent", "")) or counterparty_from_description(row.get("opis", ""))
         desc = row.get("opis", "")
         raw = "|".join(f"{k}={row.get(k, '')}" for k in HEADER[:7])
         rid = row.get("id") or hashlib.sha256(raw.encode("utf-8")).hexdigest()

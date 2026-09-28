@@ -115,6 +115,45 @@ def normalize_counterparty(name: str, aliases: dict[str, str] | None = None) -> 
     return s
 
 
+# Opis transakcji z PDF/wklejki zaczyna sie zwykle od rodzaju operacji, nie od kontrahenta.
+_LABEL = re.compile(r"\b(?:NAZWA ODBIORCY|NAZWA NADAWCY|DANE ODBIORCY|DANE NADAWCY|DANE KONTRAHENTA|ODBIORCA|NADAWCA|"
+                    r"KONTRAHENT|NAZWA|MIEJSCE TRANSAKCJI|LOKALIZACJA|ADRES)\s*:?\s+")
+_STOP = re.compile(r"\b(?:TYTUL|TYTULEM|ADRES|REF|REFERENCJE|NR REF|NUMER|RACHUNEK|KONTO|DATA|KWOTA|ORYGINALNA|KARTA|"
+                   r"NR KARTY|LOKALIZACJA|MIEJSCE|ODBIORCA|NADAWCA)\b")
+_TYPE = re.compile(r"^(?:PRZELEW(?: (?:WYCHODZACY|PRZYCHODZACY|NA RACHUNEK|NA TELEFON|DO|Z|ZEWNETRZNY|WEWNETRZNY|"
+                   r"NATYCHMIASTOWY|EXPRESS ELIXIR|ELIXIR|SEPA|KRAJOWY|SORBNET|WLASNY|PRZYCHODZACY))*|"
+                   r"PLATNOSC(?: (?:KARTA|KARTY|BLIK|WEB|MOBILNA|INTERNETOWA|TELEFONEM|APPLE PAY|GOOGLE PAY))*|"
+                   r"ZAKUP PRZY UZYCIU KARTY|TRANSAKCJA(?: (?:KARTA|KARTOWA|BLIK|BEZGOTOWKOWA))*|BLIK|OBCIAZENIE|UZNANIE|"
+                   r"POLECENIE ZAPLATY|ZLECENIE STALE|WYPLATA(?: (?:Z BANKOMATU|GOTOWKI|BLIK))*|WPLATA(?: GOTOWKI)?|"
+                   r"OPERACJA KARTA|STANDING ORDER|CARD PAYMENT|TRANSFER|PAYMENT|DEBIT|CREDIT|TYTUL|TYTULEM)\b[ :]*")
+
+
+def counterparty_from_description(text: str, aliases: dict[str, str] | None = None) -> str:
+    """Kontrahent z opisu: najpierw etykieta (Odbiorca:, Nazwa:), potem opis bez rodzaju operacji, bez numerow kart,
+    dat i numerow sklepow (ten sam sklep w roznych miesiacach ma rozne numery). Do 3 slow."""
+    s = _strip_accents(text or "").upper()
+    s = IBAN_RE.sub(" ", s)
+    s = re.sub(r"\d{4}[ *X]{2,}\d{4}|\*{2,}\d*|\bX{4,}\d*", " ", s)            # numery kart
+    m = _LABEL.search(s)
+    if m:
+        s = s[m.end():]
+        stop = _STOP.search(s)
+        s = s[:stop.start()] if stop else s
+    else:
+        prev = None
+        while prev != s:
+            prev = s
+            s = _TYPE.sub("", s.strip())
+        stop = _STOP.search(s)
+        s = s[:stop.start()] if stop and stop.start() > 0 else s
+    words = [w for w in re.sub(r"[^A-Z0-9 ]+", " ", s).split() if not re.search(r"\d", w)]
+    joined = " ".join(words[:8])
+    legal = re.search(r"\b(?:SPOLKA Z OGRANICZONA ODPOWIEDZIALNOSCIA|SPOLKA AKCYJNA|SP Z O O|SP ZOO|SPZOO|S A|SA|SP J|SP K)\b", joined)
+    if legal and legal.start() > 0:                            # za forma prawna jest juz adres albo miasto
+        joined = joined[:legal.start()]
+    return normalize_counterparty(" ".join(joined.split()[:3]), aliases)
+
+
 def _iban_hash(text: str, salt: bytes) -> str:
     m = IBAN_RE.search(text or "")
     if not m:
@@ -158,7 +197,7 @@ def load_csv(path, mapping: dict, salt: bytes) -> list[LSFRecord]:
         raw = "|".join(f"{k}={row[k]}" for k in sorted(row))
         cp_raw = row.get(mapping.get("counterparty", ""), "")
         desc_raw = row.get(mapping.get("description", ""), "")
-        cp = normalize_counterparty(cp_raw, aliases) or normalize_counterparty(" ".join(desc_raw.split()[:3]), aliases)
+        cp = normalize_counterparty(cp_raw, aliases) or counterparty_from_description(desc_raw, aliases)
         bal_col = mapping.get("balance")
         out.append(LSFRecord(
             date=parse_date(row[mapping["date"]], mapping.get("date_format")),

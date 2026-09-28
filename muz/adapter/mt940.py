@@ -11,7 +11,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from .csv_import import IBAN_RE, LSFRecord, _iban_hash, _read_text, normalize_counterparty
+from .csv_import import IBAN_RE, LSFRecord, _iban_hash, _read_text, counterparty_from_description, normalize_counterparty
 
 LINE61 = re.compile(r"^(\d{2})(\d{2})(\d{2})(\d{4})?(RC|RD|C|D)[A-Z]?(\d+,\d{0,2})")
 SUBFIELD = re.compile(r"[~<](\d{2})")
@@ -70,7 +70,7 @@ def load_mt940(path, salt: bytes, aliases: dict | None = None) -> list[LSFRecord
             def pending(v86, d=d, gr=gr, sign=sign, raw61=raw61, cur=currency):
                 name, title, acct = _parse86(v86 or "")
                 raw = raw61 + "|" + (v86 or "")
-                cp = normalize_counterparty(name, aliases) or normalize_counterparty(" ".join(title.split()[:3]), aliases)
+                cp = normalize_counterparty(name, aliases) or counterparty_from_description(title, aliases)
                 return LSFRecord(date=d, amount_gr=sign * gr, currency=cur, counterparty=cp,
                                  description=IBAN_RE.sub("[RACHUNEK]", title),
                                  iban_hash=_iban_hash(acct + " " + title, salt), balance_gr=None,
