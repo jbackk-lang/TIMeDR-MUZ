@@ -8,6 +8,7 @@
   python -m muz execute  --plans ... --plan-id ID --approval wyniki/kolejka/ID.approval.json --pubkey HEX --out wyniki
   python -m muz verify   --log wyniki/audit.jsonl
   python -m muz train    [--cpi dane/cpi.csv] [--packages 600] [--out modele/mini_ai_syntetyczny_v0.2]
+  python -m muz badanie  [--n 400] [--seed 20260929] [--scen S0,S1,S2] [--out wyniki/badanie_petla.json]
 """
 from __future__ import annotations
 
@@ -59,7 +60,20 @@ def main(argv=None) -> int:
     t_ = sub.add_parser("train")
     t_.add_argument("--cpi"); t_.add_argument("--packages", type=int)
     t_.add_argument("--out", default=str(pipeline.REPO_DIR / "modele" / "mini_ai_syntetyczny_v0.2"))
+    b_ = sub.add_parser("badanie", help="symulacja zamknietej petli budzetu (MUZ-SIM v0.1)")
+    b_.add_argument("--n", type=int, default=400); b_.add_argument("--seed", type=int, default=20260929)
+    b_.add_argument("--scen", default="S0,S1,S2"); b_.add_argument("--out")
     a = ap.parse_args(argv)
+
+    if a.cmd == "badanie":
+        from .badania.petla_run import main as badanie
+        res = badanie(a.n, a.seed, a.scen.split(","))
+        txt = json.dumps(res, indent=1, ensure_ascii=False)
+        if a.out:
+            Path(a.out).parent.mkdir(parents=True, exist_ok=True); Path(a.out).write_text(txt, encoding="utf-8")
+        for sc in a.scen.split(","):
+            print(sc, {k: round(v["ok"], 3) for k, v in res[sc]["mean"].items()})
+        return 0
 
     if a.cmd == "train":
         from . import adapter
