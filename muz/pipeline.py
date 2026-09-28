@@ -378,8 +378,18 @@ def decide(inputs, mapping_path, out_dir, *, today: date, profile_path=None, cpi
     out.mkdir(parents=True, exist_ok=True)
     (out / "decyzje.md").write_text(decisions.render(plan, cards), encoding="utf-8")
     (out / "decyzje.json").write_text(decisions.to_json(plan, cards), encoding="utf-8")
+    from . import export_docs
+    from .adapter.muz_csv import write_records
+    write_records(ctx["records"], out / "transakcje_muz.csv", ctx.get("categories"))
+    pdfs, pdf_note = export_docs.decisions_pdfs(plan, cards, out / "pdf")
+    export_docs.decisions_csv(plan, cards, out / "decyzje.csv", pdfs)
     summary = {"decyzje_umowy": len(cards), "tryb": plan.mode, "do_wyplaty_dni": plan.days,
                "import": ctx.get("import_info"), "decision_sha256": dec_sha,
-               "outputs": {f.name: sha256_file(f) for f in (out / "decyzje.md", out / "decyzje.json")}}
+               "pdf": pdf_note or len(pdfs),
+               "outputs": {f.name: sha256_file(f) for f in (out / "decyzje.md", out / "decyzje.json", out / "decyzje.csv",
+                                                            out / "transakcje_muz.csv", *pdfs.values())}}
     audit.append(Path(log_path) if log_path else out / "audit.jsonl", "decyzje", summary)
-    return {"plan": plan, "cards": cards, "summary": summary}
+    titles = {i: (decisions.card_title(cards[i]) if i >= 0 else "Przydział do wypłaty") for i in pdfs}
+    return {"plan": plan, "cards": cards, "summary": summary,
+            "pdfs": [(titles[i], pdfs[i]) for i in sorted(pdfs)], "pdf_note": pdf_note,
+            "excel": {"decyzje": out / "decyzje.csv", "transakcje": out / "transakcje_muz.csv"}}

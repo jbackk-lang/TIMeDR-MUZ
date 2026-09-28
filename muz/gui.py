@@ -6,6 +6,9 @@ Uruchom: python -m muz.gui  (albo dwuklik na run.bat bez argumentu).
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import threading
 import traceback
 from pathlib import Path
@@ -54,8 +57,13 @@ class App(tk.Tk):
         bar.pack(fill="x")
         self.run_btn = ttk.Button(bar, text="Uruchom analizę", command=self.run, state="disabled")
         self.run_btn.pack(side="left")
+        self.excel_btn = ttk.Button(bar, text="Excel ▾", command=self.excel_menu, state="disabled")
+        self.excel_btn.pack(side="left", padx=(8, 0))
+        self.pdf_btn = ttk.Button(bar, text="PDF zabiegów ▾", command=self.pdf_menu, state="disabled")
+        self.pdf_btn.pack(side="left", padx=(4, 0))
         self.status = ttk.Label(bar, text="")
         self.status.pack(side="left", padx=8)
+        self.outputs: dict = {}
 
         self.text = tk.Text(self, wrap="word", font=("Consolas", 10))
         self.text.pack(fill="both", expand=True, padx=8, pady=8)
@@ -108,6 +116,49 @@ class App(tk.Tk):
                                  f"Nowy format („{self.det.suggested_name}”): kolumny dopasowane po zawartości — "
                                  f"sprawdź i kliknij „Uruchom analizę”; format zostanie zapamiętany."))
 
+    # --- odnosniki: Excel i PDF ---------------------------------------------------------------
+    def open_file(self, path):
+        path = Path(path)
+        if not path.exists():
+            messagebox.showwarning("Brak pliku", f"Nie ma pliku {path}", parent=self)
+            return
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(str(path))  # domyslny program: Excel dla .csv, przegladarka PDF dla .pdf
+            else:
+                subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(path)])
+        except OSError as exc:
+            messagebox.showerror("Nie udało się otworzyć", f"{path}\n{exc}", parent=self)
+
+    def _popup(self, button, items):
+        m = tk.Menu(self, tearoff=0)
+        for label, cmd in items:
+            m.add_command(label=label, command=cmd)
+        m.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
+
+    def excel_menu(self):
+        ex = self.outputs.get("excel", {})
+        items = [("Lista decyzji (zabiegi, kwoty, terminy)", lambda: self.open_file(ex["decyzje"])),
+                 ("Wszystkie transakcje (CSV MUZ)", lambda: self.open_file(ex["transakcje"]))]
+        items.append(("Gotówka — ręczne wpisy (dane\\gotowka.csv)", self.open_cash))
+        self._popup(self.excel_btn, items)
+
+    def open_cash(self):
+        from .adapter.muz_csv import write_template
+        p = REPO / "dane" / "gotowka.csv"
+        if not p.exists():
+            write_template(p)
+            messagebox.showinfo("Nowy plik", "Utworzono dane\\gotowka.csv. Kwota ujemna = wydatek (np. -45,50), "
+                                "data RRRR-MM-DD. Zapisz w Excelu (format CSV) — MUZ dołącza ten plik do każdej analizy.", parent=self)
+        self.open_file(p)
+
+    def pdf_menu(self):
+        pdfs = self.outputs.get("pdfs") or []
+        if not pdfs:
+            messagebox.showinfo("Brak PDF", self.outputs.get("pdf_note") or "Brak zabiegów do wydruku.", parent=self)
+            return
+        self._popup(self.pdf_btn, [(title, lambda p=p: self.open_file(p)) for title, p in pdfs])
+
     def run(self):
         if self.path is None:
             return
@@ -135,13 +186,16 @@ class App(tk.Tk):
         try:
             cpi = REPO / "dane" / "cpi.csv"
             cpi_p = cpi if cpi.exists() else None
-            pipeline.run([self.path], mapping_path, out, cpi_path=cpi_p)
+            cash = REPO / "dane" / "gotowka.csv"
+            inputs = [self.path] + ([cash] if cash.exists() and cash.resolve() != self.path.resolve() else [])
+            pipeline.run(inputs, mapping_path, out, cpi_path=cpi_p)
             report = (out / "raport_etap0.md").read_text(encoding="utf-8")
             try:  # decyzje na gorze raportu; profil/umowy opcjonalne (profil.json, umowy.json obok run.bat)
                 from datetime import date as _d
                 prof, con = REPO / "profil.json", REPO / "umowy.json"
-                pipeline.decide([self.path], mapping_path, out, today=_d.today(), cpi_path=cpi_p,
-                                profile_path=prof if prof.exists() else None, contracts_path=con if con.exists() else None)
+                self.outputs = pipeline.decide(inputs, mapping_path, out, today=_d.today(), cpi_path=cpi_p,
+                                               profile_path=prof if prof.exists() else None,
+                                               contracts_path=con if con.exists() else None)
                 report = (out / "decyzje.md").read_text(encoding="utf-8") + "\n\n" + report
             except Exception:  # noqa: BLE001 - decyzje nie blokuja raportu
                 (out / "blad_decyzje.txt").write_text(traceback.format_exc(), encoding="utf-8")
@@ -153,6 +207,8 @@ class App(tk.Tk):
 
     def _done(self, report, exc):
         self.run_btn.config(state="normal")
+        self.excel_btn.config(state="normal" if self.outputs.get("excel") else "disabled")
+        self.pdf_btn.config(state="normal" if self.outputs.get("excel") else "disabled")
         self.text.delete("1.0", "end")
         if exc is not None:
             self.status.config(text="Błąd — szczegóły w wyniki\\blad.txt")

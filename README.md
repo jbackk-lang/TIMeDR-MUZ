@@ -68,6 +68,11 @@ Wynik `wyniki/decyzje.md` (w oknie `run.bat` — na górze raportu):
 1. **Do następnej wypłaty** — reguła z badania MUZ-SIM: rezerwa na opłaty, które zejdą przed wypłatą (według ich kalendarza), kwota na życie na dzień i tydzień, ile odłożyć na fundusz wydatków nieregularnych i bufor, ile nadpłacić na najdroższy dług. Przy długu lub braku zapasu — 80% zwykłych wydatków (poniżej 75% gospodarstwa w symulacji się łamały). Saldo, oszczędności i długi — w `profil.json` (wzór: `profil_przyklad.json`).
 2. **Karty działania dla umów** — gdy opłata rośnie istotnie ponad inflację: cel ceny (poprzednia), górna granica zgody (poprzednia + inflacja), plan B, termin (z okresu wypowiedzenia), co powiedzieć w dziale utrzymania klienta, na co się nie zgadzać, co zapisać. Negocjację prowadzisz Ty; pismo zamiast rozmowy przygotowuje `propose` (z Twoim zatwierdzeniem).
 
+W oknie `run.bat` po analizie działają dwa przyciski:
+
+- **Excel ▾** — lista decyzji (`wyniki/decyzje.csv`: zabieg, kwoty, cel, granica, rocznie, termin, plik PDF), wszystkie transakcje w CSV MUZ (`wyniki/transakcje_muz.csv`) i plik gotówki `dane/gotowka.csv` (tworzy się przy pierwszym kliknięciu; MUZ dołącza go do każdej analizy).
+- **PDF zabiegów ▾** — lista PDF podpisanych tytułem zabiegu, np. „Negocjuj cenę: ORANGE POLSKA — cel 89,00 zł, zgoda najwyżej do 92,56 zł”, plus „Przydział do wypłaty”. Tytuł jest nagłówkiem i tytułem dokumentu; pliki w `wyniki/pdf/`. PDF wymaga `pip install reportlab`.
+
 MUZ niczego nie wykonuje sam i nie przenosi pieniędzy.
 
 ## Uczenie mini-AI na pakietach budżetów

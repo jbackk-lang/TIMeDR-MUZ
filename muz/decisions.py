@@ -272,13 +272,23 @@ def contract_card(stream: Stream, frames, proposal: dict, cpi_yoy: float | None,
             "notice": c.get("notice_period_months")}
 
 
+def card_title(k: dict) -> str:
+    """Tytul zabiegu -- ten sam w raporcie, w nazwie i tytule PDF oraz w liscie decyzji dla Excela."""
+    who, a = k["counterparty"], k["action"]
+    if a == "negocjowac":
+        return f"Negocjuj cenę: {who} — cel {zl(k['target_gr'])}, zgoda najwyżej do {zl(k['max_ok_gr'])}"
+    if a == "anulowac":
+        return f"Wypowiedz: {who} — oszczędność {zl(k['save_cancel_gr'])} rocznie"
+    return f"Zmień plan lub dostawcę: {who} — szukaj ceny ≤ {zl(k['max_ok_gr'])}"
+
+
 def render_card(k: dict) -> str:
     who, a = k["counterparty"], k["action"]
     pct = "" if k["rel"] is None else f"{k['rel'] * 100:+.1f}%".replace(".", ",")
     cpi = "brak danych" if k["cpi"] is None else f"{k['cpi'] * 100:.1f}%".replace(".", ",")
     L = []
     if a == "negocjowac":
-        L += [f"### Negocjuj cenę: {who} — cel {zl(k['target_gr'])}, zgoda najwyżej do {zl(k['max_ok_gr'])}", "",
+        L += [f"### {card_title(k)}", "",
               f"**Dlaczego:** od {k['change_month']} płacisz {zl(k['now_gr'])} zamiast {zl(k['before_gr'])} ({pct}), "
               f"inflacja r/r {cpi}. Ponad inflację nadpłacasz ok. **{zl(k['yearly_gr'])} rocznie**.",
               f"**Termin:** {k['deadline'].isoformat()} — {k['why_deadline']}.",
@@ -298,12 +308,12 @@ def render_card(k: dict) -> str:
               "**Zapisz:** data, imię rozmówcy, nowa cena i od kiedy; poproś o potwierdzenie mailem albo w aplikacji.",
               "**Zamiast rozmowy — pismo:** `python -m muz propose …` przygotuje „prośbę o obniżkę” do Twojego zatwierdzenia."]
     elif a == "anulowac":
-        L += [f"### Wypowiedz: {who} — oszczędność {zl(k['save_cancel_gr'])} rocznie", "",
+        L += [f"### {card_title(k)}", "",
               f"**Dlaczego:** {zl(k['before_gr'])} → {zl(k['now_gr'])} ({pct}, inflacja {cpi}), negocjacje już były.",
               f"**Termin:** {k['deadline'].isoformat()} — {k['why_deadline']}.",
               "**Jak:** pismo wypowiedzenia z szablonu (`python -m muz propose`, zatwierdzasz Ty); zachowaj potwierdzenie nadania."]
     elif a == "zmienic":
-        L += [f"### Zmień plan lub dostawcę: {who} — szukaj ceny ≤ {zl(k['max_ok_gr'])}", "",
+        L += [f"### {card_title(k)}", "",
               f"**Dlaczego:** {zl(k['before_gr'])} → {zl(k['now_gr'])} ({pct}, inflacja {cpi}), negocjacje już były. "
               f"Różnica ponad inflację: {zl(k['yearly_gr'])} rocznie.",
               f"**Termin:** {k['deadline'].isoformat()} — {k['why_deadline']}.",
