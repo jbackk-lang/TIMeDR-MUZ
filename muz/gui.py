@@ -147,8 +147,10 @@ class App(tk.Tk):
             self.status.config(text=f"Błąd: {exc} — szczegóły w wyniki\\blad.txt")
             return
         self.w = w
+        if w.hasla:
+            self.after(200, self.ask_passwords, list(w.hasla))
         if w.plan is None:
-            self.plan_txt.insert("end", "Dodaj wyciąg z banku (przycisk „➕ Dodaj wyciągi…”: plik CSV lub MT940 pobrany "
+            self.plan_txt.insert("end", "Dodaj wyciąg z banku (przycisk „➕ Dodaj wyciągi…”: PDF, CSV albo MT940 pobrany "
                                         "z bankowości internetowej) albo skopiuj historię ze strony banku i użyj „Wklej…”.\n\n"
                                  + "\n".join(w.problemy))
             self.status.config(text="Czekam na dane.")
@@ -174,7 +176,7 @@ class App(tk.Tk):
     # ---------------------------------------------------------------- dane
     def add_statements(self):
         fs = filedialog.askopenfilenames(parent=self, title="Wyciągi z banku (można zaznaczyć kilka)",
-                                         filetypes=[("Wyciągi", "*.csv *.txt *.sta *.mt940 *.940"), ("Wszystkie", "*.*")])
+                                         filetypes=[("Wyciągi", "*.pdf *.csv *.txt *.sta *.mt940 *.940"), ("Wszystkie", "*.*")])
         if fs:
             zarzadca.add_files(fs)
             self.refresh()
@@ -219,6 +221,22 @@ class App(tk.Tk):
         ttk.Button(b, text="Rozpoznaj", command=recognize).pack(side="left")
         ttk.Button(b, text="Zapisz", command=save).pack(side="left", padx=4)
         ttk.Button(b, text="Anuluj", command=win.destroy).pack(side="right")
+
+    def ask_passwords(self, files):
+        opened = False
+        for f in files:
+            pw = simpledialog.askstring("PDF z hasłem", f"{f.name} jest zabezpieczony hasłem (w bankach zwykle PESEL "
+                                        "albo data urodzenia). Wpisz hasło — MUZ odczyta plik raz i nie zapisze hasła.",
+                                        show="*", parent=self)
+            if not pw:
+                continue
+            try:
+                zarzadca.unlock_pdf(f, pw, self.ust)
+                opened = True
+            except Exception as exc:  # noqa: BLE001
+                messagebox.showwarning("PDF", f"{f.name}: {exc}", parent=self)
+        if opened:
+            self.refresh()
 
     def set_saldo(self):
         raw = self.saldo.get().strip().replace(" ", "").replace(",", ".")

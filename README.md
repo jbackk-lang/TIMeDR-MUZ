@@ -8,12 +8,14 @@ Stan: prototyp etapów 0–1. Etap 0 (tylko odczyt) działa na wyciągach z plik
 
 1. **Dwuklik na `run.bat`.** Za pierwszym razem sam doinstaluje, czego potrzebuje (wymagany jest tylko Python).
 2. **Daj mu wyciąg** — jedno z trzech:
-   - przeciągnij plik(i) wyciągu z banku (CSV lub MT940) na `run.bat`,
+   - przeciągnij plik(i) wyciągu z banku (PDF, CSV lub MT940) na `run.bat`,
    - albo w oknie „➕ Dodaj wyciągi…” (można zaznaczyć kilka naraz),
    - albo skopiuj historię ze strony banku, z aplikacji, z SMS-a czy z Excela i wklej przez „Wklej…”.
    MUZ sam rozpoznaje format banku (i zapamiętuje go pod nazwą banku), daty, kwoty, opłaty stałe i ich kategorie, dzień wypłaty i debet. Inflację pobiera sam z GUS.
 3. **Czytaj zakładkę „Co teraz”**: ile zarezerwować na opłaty do wypłaty, ile masz na życie dziennie, ile odłożyć, co nadpłacić — i lista spraw do załatwienia z zyskiem rocznie i terminem.
 4. **Sprawa = jeden klik**: „Karta: co powiedzieć (PDF)” — gotowa rozmowa z celem ceny i granicą zgody; „Pismo do wydruku” — gotowe pismo; po wszystkim „✓ Załatwione” albo „✗ Nie udało się”. MUZ pamięta wynik i następnym razem proponuje kolejny krok (np. zmianę oferty albo wypowiedzenie).
+
+Wyciągi PDF: MUZ czyta PDF z tekstem (taki, w którym da się zaznaczyć tekst myszką) — i tabele, i zwykłe listy; sam rozpoznaje, która kwota to saldo. PDF z hasłem: okno zapyta o hasło raz i go nie zapisuje. Skanu (zdjęcia kartki) nie przeczyta — wtedy pobierz w banku historię jako PDF albo CSV.
 
 Jedyne pole do wpisania: **„Saldo teraz”** — tylko gdy wyciąg jest starszy niż kilka dni. Imię i adres do pism wpisujesz raz (MUZ zapyta przy pierwszym piśmie). Jeśli MUZ źle rozpoznał kategorię opłaty — zakładka „Opłaty stałe”, zaznacz i wybierz z listy.
 
@@ -70,7 +72,7 @@ python -m muz formaty --nazwa "historia" "Konto główne"            # zmiana na
 python -m muz szablon --out gotowka.csv                            # pusty CSV MUZ do ręcznych wpisów
 ```
 
-**CSV MUZ** (`data;kwota;waluta;kontrahent;opis;kategoria;saldo;zrodlo;id`, separator `;`, przecinek dziesiętny, UTF-8 z BOM — otwiera się w polskim Excelu). Kwota ujemna = wydatek. Tu dopisuje się gotówkę i rachunki spoza banku; kategoria jest dowolna. Plik CSV MUZ można podać wszędzie tam, gdzie wyciąg (`--in`), także w oknie `run.bat`. Wyciągi PDF: jeszcze nie.
+**CSV MUZ** (`data;kwota;waluta;kontrahent;opis;kategoria;saldo;zrodlo;id`, separator `;`, przecinek dziesiętny, UTF-8 z BOM — otwiera się w polskim Excelu). Kwota ujemna = wydatek. Tu dopisuje się gotówkę i rachunki spoza banku; kategoria jest dowolna. Plik CSV MUZ można podać wszędzie tam, gdzie wyciąg (`--in`), także w oknie `run.bat`. Wyciągi PDF też (`--in wyciag.pdf`, wymaga `pip install pdfplumber`).
 
 ### Decyzje: co zrobić, ile i do kiedy
 

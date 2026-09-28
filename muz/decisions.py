@@ -50,8 +50,9 @@ def paydays(records: list[LSFRecord]) -> list[date]:
 
 
 def next_payday(pd: list[date], today: date) -> tuple[date, int]:
-    iv = [(b - a).days for a, b in zip(pd[-7:], pd[-6:])]
-    step = int(statistics.median(iv)) if iv else 30
+    tail = pd[-7:]
+    iv = [(b - a).days for a, b in zip(tail, tail[1:])]
+    step = max(7, int(statistics.median(iv))) if iv else 30
     nxt = (pd[-1] if pd else today) + timedelta(days=step)
     while nxt <= today:
         nxt += timedelta(days=step)

@@ -66,7 +66,11 @@ def _load_records(inputs, mapping, salt, categories=None, info=None, formats_pat
     store = None
     for p in inputs:
         name = Path(p).name
-        if str(p).lower().endswith((".sta", ".mt940", ".940")):
+        if str(p).lower().endswith(".pdf"):
+            from .adapter.pdf_import import load_pdf
+            records += load_pdf(p, salt)
+            info is not None and info.append({"plik": name, "format": "PDF"})
+        elif str(p).lower().endswith((".sta", ".mt940", ".940")):
             records += adapter.load_mt940(p, salt, mapping.get("aliases") if mapping else None)
             info is not None and info.append({"plik": name, "format": "MT940"})
         elif is_muz_csv(p):

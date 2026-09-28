@@ -61,3 +61,11 @@ def test_brak_salda_nie_zgaduje(tmp_path):
     plan = decisions.cycle_plan(recs, ctx["streams"], today=date(2026, 6, 25))
     assert plan.balance_gr is None and plan.allowance_gr == 0
     assert "na koncie" in decisions.render_cycle(plan)
+
+
+def test_krotka_historia_nie_zawiesza():
+    # jeden-dwa miesiace wyciagu (np. jeden PDF): wczesniej petla nextpayday krecila sie w nieskonczonosc
+    assert decisions.next_payday([date(2026, 5, 1)], date(2026, 6, 14))[0] == date(2026, 6, 30)
+    nxt, step = decisions.next_payday([date(2026, 5, 1), date(2026, 6, 1)], date(2026, 6, 14))
+    assert step == 31 and nxt == date(2026, 7, 2)
+    assert decisions.next_payday([], date(2026, 6, 14))[0] == date(2026, 7, 14)

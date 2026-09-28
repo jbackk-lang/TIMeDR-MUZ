@@ -26,7 +26,7 @@ RE_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 RE_DMY = re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b")
 RE_DM = re.compile(r"(?<![\d,.])(\d{1,2})\.(\d{1,2})(?![\d,]|\.\d)")
 RE_WORD = re.compile(r"\b(\d{1,2})\s+(sty|lut|mar|kwi|maj|cze|lip|sie|wrz|paz|lis|gru)[a-z]*\.?(?:\s+(\d{4}))?", re.I)
-RE_AMOUNT = re.compile(r"(?<![\w.,])([+\-−–]?\s?\d{1,3}(?:[  ]\d{3})+(?:[.,]\d{1,2})?|[+\-−–]?\s?\d+[.,]\d{2}|"
+RE_AMOUNT = re.compile(r"(?<![\w.,])([+\-−–]?\s?\d{1,3}(?:[  ]\d{3})+(?:[.,]\d{1,2})?(?!\d)|[+\-−–]?\s?\d+[.,]\d{2}(?!\d)|"
                        r"[+\-−–]?\s?\d+(?=\s*(?:zł|zl|pln)\b))\s*(zł|zl|pln)?", re.I)
 INCOME = re.compile(r"wplyw|uznanie|przychodzacy|wynagrodzenie|pensja|zwrot|przelew od|otrzyman|swiadczenie|800 ?plus", re.I)
 

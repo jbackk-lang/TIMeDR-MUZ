@@ -24,7 +24,7 @@ REPO = pipeline.REPO_DIR
 WYCIAGI = REPO / "wyciagi"
 DANE = REPO / "dane"
 WYNIKI = REPO / "wyniki"
-EXT = (".csv", ".txt", ".sta", ".mt940", ".940")
+EXT = (".csv", ".txt", ".sta", ".mt940", ".940", ".pdf")
 CATEGORIES = ["czynsz", "energia", "telekom", "media", "subskrypcja", "ubezpieczenie", "kredyt", "inne"]
 
 
@@ -49,6 +49,7 @@ class Wynik:
     problemy: list[str] = field(default_factory=list)
     pdf_przydzial: Path | None = None
     pdf_note: str | None = None
+    hasla: list[Path] = field(default_factory=list)       # PDF-y z haslem: okno zapyta raz
     excel: dict = field(default_factory=dict)
     raport: str = ""
     dane_do: date | None = None
@@ -117,7 +118,8 @@ def action_id(k: dict) -> str:
 def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = DANE, wyniki: Path = WYNIKI,
         formats_path=None, salt_path=None, cpi_fetch=None) -> Wynik:
     w = Wynik()
-    files = statement_files(wyciagi, dane)
+    done_pdf = set(ust.d.get("pdf_odczytane", []))
+    files = [f for f in statement_files(wyciagi, dane) if f.name not in done_pdf]
     if not files:
         w.problemy.append("brak wyciągów — dodaj plik z banku albo wklej historię z przeglądarki")
         return w
@@ -129,7 +131,13 @@ def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = D
             records += pipeline._load_records([f], {}, salt, categories, info, formats_path)
             w.pliki += info
         except Exception as exc:  # noqa: BLE001 - jeden zly plik nie zatrzymuje reszty
-            w.problemy.append(f"{f.name}: nie udało się wczytać ({exc})")
+            from .adapter.pdf_import import PdfError, PdfPasswordNeeded
+            if isinstance(exc, PdfPasswordNeeded):
+                w.hasla.append(f)
+            elif isinstance(exc, PdfError):
+                w.problemy.append(str(exc))
+            else:
+                w.problemy.append(f"{f.name}: nie udało się wczytać ({exc})")
     if not records:
         return w
     w.dane_do = max(r.date for r in records)
@@ -204,3 +212,17 @@ def letter_pdf(s: Sprawa, ust: Ustawienia, today: date, out: Path) -> Path:
     title = {"negocjowac": "Prośba o obniżkę", "anulowac": "Wypowiedzenie umowy", "zmienic": "Wniosek o zmianę planu"}[s.akcja]
     path = out / f"{today.isoformat()}_Pismo_{export_docs.slug(title + ' ' + s.kontrahent)}.pdf"
     return export_docs._pdf(path, f"{title}: {s.kontrahent}", text, "Szkic pisma — wydrukuj, podpisz i wyślij sam.")
+
+
+def unlock_pdf(path, password: str, ust: Ustawienia, wyciagi: Path = WYCIAGI, salt_path=None) -> Path:
+    """PDF z haslem: odczyt raz, zapis transakcji jako CSV MUZ obok; hasla nie zapisujemy nigdzie."""
+    from .adapter.muz_csv import write_records
+    from .adapter.pdf_import import load_pdf
+    path = Path(path)
+    salt = pipeline.local_salt(Path(salt_path) if salt_path else REPO / ".muz_salt")
+    recs = load_pdf(path, salt, password=password)
+    out = wyciagi / f"{path.stem} (z PDF).csv"
+    write_records(recs, out)
+    ust.d.setdefault("pdf_odczytane", []).append(path.name)
+    ust.save()
+    return out

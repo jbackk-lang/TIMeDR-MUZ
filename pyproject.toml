@@ -14,6 +14,7 @@ dependencies = ["numpy"]
 [project.optional-dependencies]
 szyfrowanie = ["cryptography"]      # AES-256-GCM, Ed25519 (bez niej: Ed25519 w czystym Pythonie, magazyn odmawia pracy)
 pisma = ["reportlab"]               # PDF
+pdf = ["pdfplumber"]                # wyciagi PDF (z warstwa tekstu)
 qr = ["segno"]                      # obraz kodu QR (czysty Python)
 formularze = ["playwright"]         # Chromium, opcjonalnie
 testy = ["pytest"]
