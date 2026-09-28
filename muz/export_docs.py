@@ -48,8 +48,8 @@ def decisions_csv(plan: D.CyclePlan, cards: list[dict], path, pdfs: dict[int, Pa
                             pdfs.get(-1, Path("")).name]); n += 1
         for i, k in enumerate(cards):
             yearly = k["save_cancel_gr"] if k["action"] == "anulowac" else k["yearly_gr"]
-            w.writerow([n, D.card_title(k), k["action"], k["counterparty"], _zl(k["now_gr"]), _zl(k["target_gr"]),
-                        _zl(k["max_ok_gr"]), _zl(yearly), k["deadline"].isoformat(), pdfs.get(i, Path("")).name]); n += 1
+            w.writerow([n, D.card_title(k), k["action"], k["counterparty"], _zl(k.get("now_gr")), _zl(k.get("target_gr")),
+                        _zl(k.get("max_ok_gr")), _zl(yearly), k["deadline"].isoformat(), pdfs.get(i, Path("")).name]); n += 1
     return path
 
 

@@ -195,3 +195,13 @@ Zasada: użytkownik nie programuje i nie wypełnia rubryk. Wpisuje tylko to, cze
 - `muz/ustawienia.py` — pamięć okna (`ustawienia.json`): saldo z datą, dane do pism, poprawki kategorii, potwierdzenia, wyniki spraw („nie udało się” podnosi licznik negocjacji → polityka proponuje zmianę oferty/wypowiedzenie).
 - `muz/gui.py` — zakładki „Co teraz”, „Opłaty stałe”, „Szczegóły”; przeciągnięcie plików na `run.bat` dodaje je do `wyciagi/`. Pismo z okna to szkic do wydruku, który użytkownik wysyła sam (puste pola do wypełnienia długopisem, gdy MUZ ich nie zna).
 - Testy: `tests/test_zarzadca.py` (kategorie, trzy style wklejania, pełny przebieg z folderu, „nie udało się” → zmiana oferty → „załatwione” znika, saldo z okna, pismo PDF).
+
+
+## 14. Sprawy poza podwyżkami cen (`muz/sprawy.py`)
+
+Jawne reguły zarządcy, liczone z wyciągów bez pytania użytkownika (nie przeszły jeszcze testu pre-rejestrowanego jak polityka podwyżek v0.3; każda karta pokazuje, z czego wynika kwota, a oszczędność jest górną granicą):
+
+- **kilka umów tego samego rodzaju** — ≥ 2 opłaty stałe w grupie łączność (telekom + media), subskrypcje albo ubezpieczenia (energia nie: prąd i gaz to dwie różne usługi); oszczędność = suma bez najdroższej umowy;
+- **koszt długu** — odsetki od debetu, odsetki karne, odsetki w ratach kredytu (z rozbicia „ODSETKI: …” w opisie raty), prowizje; w przeliczeniu na rok; wskazówka o karencji, gdy rata ma „KAPITAŁ: 0,00”;
+- **opłata za konto** — miesięczna opłata za prowadzenie rachunku w ≥ 2 miesiącach;
+- **płatności odroczone** — PayPo, Klarna, Twisto, „płacę później”: średnia miesięczna i szczyt (bez kwoty oszczędności).

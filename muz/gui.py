@@ -25,7 +25,9 @@ from .decisions import render_cycle, zl
 from .ustawienia import Ustawienia
 
 REPO = zarzadca.REPO
-ACTION_LABEL = {"negocjowac": "zadzwoń / negocjuj", "anulowac": "wypowiedz", "zmienic": "zmień ofertę"}
+ACTION_LABEL = {"negocjowac": "zadzwoń / negocjuj", "anulowac": "wypowiedz", "zmienic": "zmień ofertę",
+                "zduplikowane": "sprawdź i połącz", "koszt_dlugu": "spłacaj najdroższy", "oplata_konto": "zmień warunki konta",
+                "bnpl": "wyłącz nowe"}
 
 
 def open_path(path) -> None:
@@ -160,7 +162,8 @@ class App(tk.Tk):
         plain = render_cycle(w.plan).replace("**", "").replace("## ", "").replace("_", "")
         self.plan_txt.insert("end", plain)
         for s in w.sprawy:
-            self.tree.insert("", "end", iid=s.id, values=(s.tytul, ACTION_LABEL.get(s.akcja, s.akcja), zl(s.rocznie_gr),
+            self.tree.insert("", "end", iid=s.id, values=(s.tytul, ACTION_LABEL.get(s.akcja, s.akcja),
+                                                          zl(s.rocznie_gr) if s.rocznie_gr else "—",
                                                           s.termin.strftime("%d.%m.%Y")))
         self.oplaty_info.config(text=w.oplaty_info)
         for o in w.oplaty:

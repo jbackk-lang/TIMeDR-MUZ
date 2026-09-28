@@ -12,7 +12,7 @@ Stan: prototyp etapów 0–1. Etap 0 (tylko odczyt) działa na wyciągach z plik
    - albo w oknie „➕ Dodaj wyciągi…” (można zaznaczyć kilka naraz),
    - albo skopiuj historię ze strony banku, z aplikacji, z SMS-a czy z Excela i wklej przez „Wklej…”.
    MUZ sam rozpoznaje format banku (i zapamiętuje go pod nazwą banku), daty, kwoty, opłaty stałe i ich kategorie, dzień wypłaty i debet. Inflację pobiera sam z GUS.
-3. **Czytaj zakładkę „Co teraz”**: ile zarezerwować na opłaty do wypłaty, ile masz na życie dziennie, ile odłożyć, co nadpłacić — i lista spraw do załatwienia z zyskiem rocznie i terminem.
+3. **Czytaj zakładkę „Co teraz”**: ile zarezerwować na opłaty do wypłaty, ile masz na życie dziennie, ile odłożyć, co nadpłacić — i lista spraw do załatwienia z zyskiem rocznie i terminem: podwyżki ponad inflację, kilka umów tego samego rodzaju (np. dwóch operatorów), koszt długu (odsetki, prowizje), opłata za konto, płatności odroczone.
 4. **Sprawa = jeden klik**: „Karta: co powiedzieć (PDF)” — gotowa rozmowa z celem ceny i granicą zgody; „Pismo do wydruku” — gotowe pismo; po wszystkim „✓ Załatwione” albo „✗ Nie udało się”. MUZ pamięta wynik i następnym razem proponuje kolejny krok (np. zmianę oferty albo wypowiedzenie).
 
 Wyciągi PDF: MUZ czyta PDF z tekstem (taki, w którym da się zaznaczyć tekst myszką) — i tabele, i zwykłe listy; sam rozpoznaje, która kwota to saldo. PDF z hasłem: okno zapyta o hasło raz i go nie zapisuje. Skanu (zdjęcia kartki) nie przeczyta — wtedy pobierz w banku historię jako PDF albo CSV.

@@ -117,7 +117,7 @@ def forward_fill(cpi: dict[str, float] | None, months: int = 3) -> dict[str, flo
 
 
 def action_id(k: dict) -> str:
-    return f"{k['action']}|{k['counterparty']}|{k['now_gr']}"
+    return k.get("id") or f"{k['action']}|{k['counterparty']}|{k['now_gr']}"
 
 
 def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = DANE, wyniki: Path = WYNIKI,
@@ -208,6 +208,9 @@ def run(today: date, ust: Ustawienia, *, wyciagi: Path = WYCIAGI, dane: Path = D
     if stan_note:
         w.plan.notes = [n for n in w.plan.notes if "saldo z wyciągu" not in n] + [stan_note]
     cards = decisions.contract_decisions(ctx, dec=dec, dec_sha=dec_sha, today=today)
+    from . import sprawy
+    cards = sorted(cards + sprawy.extra_cards(ctx, today, profile.get("dlugi", [])),
+                   key=lambda k: -(k["save_cancel_gr"] if k["action"] == "anulowac" else k["yearly_gr"]))
 
     for s in ctx["monthly"]:
         c = s.contract or {}
@@ -282,6 +285,8 @@ def letter_pdf(s: Sprawa, ust: Ustawienia, today: date, out: Path) -> Path:
               "kwota_po": f"{k['now_gr'] / 100:.2f}".replace(".", ","),
               "zmiana": "" if k["rel"] is None else f"{k['rel'] * 100:+.1f}%".replace(".", ","),
               "okres_wypowiedzenia": k.get("notice") or "___", "nowy_plan": blank}
+    if s.akcja not in TEMPLATE_BY_ACTION:
+        raise ValueError("do tej sprawy nie ma pisma — co zrobić, jest w karcie (PDF)")
     tpl = (TEMPLATES_DIR / TEMPLATE_BY_ACTION[s.akcja][0]).read_text(encoding="utf-8")
     needed = {f for _, f, _, _ in string.Formatter().parse(tpl) if f}
     text = tpl.format(**{n: fields.get(n, blank) for n in needed})

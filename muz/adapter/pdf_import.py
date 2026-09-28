@@ -149,7 +149,7 @@ def _records_from_text(text: str, path: Path, salt: bytes) -> list[LSFRecord]:
             toks = kind.split()
             if toks and len(toks[0]) >= 8 and re.search(r"\d", toks[0]) and re.search(r"[A-Za-z]", toks[0]):
                 kind = " ".join(toks[1:])                            # identyfikator operacji
-            tx.append({"d": d, "amounts": amounts, "kind": kind, "details": []})
+            tx.append({"d": d, "amounts": amounts, "kind": kind, "details": [], "raw": rest_nd.strip()})
             open_tx = True
             continue
         if FOOTER.search(low) or SKIP.search(low):
@@ -178,7 +178,7 @@ def _records_from_text(text: str, path: Path, salt: bytes) -> list[LSFRecord]:
             prev = kept[-1]["amounts"][-1][0]
             if len(t["amounts"]) >= 2 and abs(abs(t["amounts"][-1][0] - prev) - abs(t["amounts"][0][0])) > 1 \
                     and t["d"] == kept[-1]["d"]:
-                kept[-1]["details"].append(t["kind"])
+                kept[-1]["details"].append(t["raw"])                  # z kwotami (np. ODSETKI: 172,85)
                 kept[-1]["details"] += t["details"]
                 continue
             kept.append(t)

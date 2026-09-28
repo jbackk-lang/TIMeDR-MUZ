@@ -279,6 +279,8 @@ def contract_card(stream: Stream, frames, proposal: dict, cpi_yoy: float | None,
 
 def card_title(k: dict) -> str:
     """Tytul zabiegu -- ten sam w raporcie, w nazwie i tytule PDF oraz w liscie decyzji dla Excela."""
+    if k.get("title"):
+        return k["title"]
     who, a = k["counterparty"], k["action"]
     if a == "negocjowac":
         return f"Negocjuj cenę: {who} — cel {zl(k['target_gr'])}, zgoda najwyżej do {zl(k['max_ok_gr'])}"
@@ -288,6 +290,8 @@ def card_title(k: dict) -> str:
 
 
 def render_card(k: dict) -> str:
+    if k.get("body_md"):
+        return f"### {k['title']}\n\n{k['body_md']}\n"
     who, a = k["counterparty"], k["action"]
     pct = "" if k["rel"] is None else f"{k['rel'] * 100:+.1f}%".replace(".", ",")
     cpi = "brak danych" if k["cpi"] is None else f"{k['cpi'] * 100:.1f}%".replace(".", ",")
