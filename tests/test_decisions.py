@@ -60,4 +60,4 @@ def test_brak_salda_nie_zgaduje(tmp_path):
     recs = [r.__class__(**{**r.__dict__, "balance_gr": None}) for r in ctx["records"]]
     plan = decisions.cycle_plan(recs, ctx["streams"], today=date(2026, 6, 25))
     assert plan.balance_gr is None and plan.allowance_gr == 0
-    assert "saldo" in decisions.render_cycle(plan)
+    assert "na koncie" in decisions.render_cycle(plan)

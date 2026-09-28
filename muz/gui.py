@@ -1,226 +1,333 @@
-"""Okno etapu 0 (tkinter z biblioteki standardowej): wybor wyciagu, mapowanie kolumn, raport.
+"""Okno zarzadcy budzetu (tkinter z biblioteki standardowej). Uzytkownik nie programuje i nie wypelnia rubryk:
 
-Okno nie znika po bledzie: blad pokazuje sie w oknie, a pelny slad trafia do wyniki/blad.txt.
-Uruchom: python -m muz.gui  (albo dwuklik na run.bat bez argumentu).
+- przy otwarciu okno samo wczytuje wyciagi z folderu `wyciagi/`, odswieza inflacje i pokazuje, co robic,
+- "Dodaj wyciągi…" (albo przeciagniecie pliku na run.bat) -- kopiuje pliki i od razu liczy,
+- "Wklej…" -- tekst skopiowany ze strony banku, z aplikacji albo z Excela; MUZ sam znajduje daty i kwoty,
+- jedyne pole do wpisania: saldo teraz (opcjonalne, gdy wyciag jest starszy),
+- sprawy: karta PDF, pismo do wydruku, "Załatwione" / "Nie udało się" -- MUZ pamieta i nastepnym razem proponuje dalej.
+Blad nie zamyka okna: komunikat w oknie, pelny slad w wyniki/blad.txt.
 """
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 import threading
 import traceback
+from datetime import date
 from pathlib import Path
 
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from . import pipeline
-from .adapter.autodetect import ProfileStore, sniff
-from .adapter.csv_import import detect_header, guess_mapping
-from .adapter.muz_csv import is_muz_csv
-from .report import plain_text
+from . import wklej, zarzadca
+from .decisions import render_cycle, zl
+from .ustawienia import Ustawienia
 
-REPO = Path(__file__).resolve().parents[1]
-FIELDS = [("date", "Data operacji *"), ("amount", "Kwota *"), ("debit", "Obciążenia (zamiast kwoty)"),
-          ("credit", "Uznania (zamiast kwoty)"), ("counterparty", "Kontrahent *"),
-          ("description", "Tytuł / opis *"), ("currency", "Waluta"), ("balance", "Saldo po operacji")]
-REQUIRED = {"date", "counterparty", "description"}
+REPO = zarzadca.REPO
+ACTION_LABEL = {"negocjowac": "zadzwoń / negocjuj", "anulowac": "wypowiedz", "zmienic": "zmień ofertę"}
+
+
+def open_path(path) -> None:
+    path = Path(path)
+    if sys.platform.startswith("win"):
+        os.startfile(str(path))  # domyslny program: Excel dla .csv, przegladarka PDF, Eksplorator dla folderu
+    else:
+        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(path)])
 
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, add: list[str] | None = None):
         super().__init__()
-        self.title("TIMeDR-MUZ — etap 0 (tylko odczyt)")
-        self.geometry("900x640")
-        self.path: Path | None = None
-        self.columns: list[str] = []
-        self.vars = {k: tk.StringVar() for k, _ in FIELDS}
-        self.combos = {}
+        self.title("MUZ — zarządca budżetu")
+        self.geometry("1000x700")
+        self.ust = Ustawienia(REPO / "ustawienia.json")
+        self.w: zarzadca.Wynik | None = None
+        self._build()
+        if add:
+            zarzadca.add_files(add)
+        self.after(100, self.refresh)
 
+    # ---------------------------------------------------------------- budowa okna
+    def _build(self):
         top = ttk.Frame(self, padding=8)
         top.pack(fill="x")
-        ttk.Button(top, text="Wybierz wyciąg (CSV lub MT940)…", command=self.choose).pack(side="left")
-        self.file_label = ttk.Label(top, text="nie wybrano pliku")
-        self.file_label.pack(side="left", padx=8)
+        ttk.Button(top, text="➕ Dodaj wyciągi…", command=self.add_statements).pack(side="left")
+        ttk.Button(top, text="Wklej…", command=self.paste).pack(side="left", padx=4)
+        ttk.Button(top, text="⟳ Odśwież", command=self.refresh).pack(side="left")
+        ttk.Label(top, text="   Saldo teraz:").pack(side="left")
+        self.saldo = tk.StringVar(value="" if self.ust.saldo(date.today()) is None else f"{self.ust.saldo(date.today()):.2f}".replace(".", ","))
+        e = ttk.Entry(top, textvariable=self.saldo, width=12)
+        e.pack(side="left")
+        e.bind("<Return>", lambda _e: self.set_saldo())
+        ttk.Label(top, text="zł").pack(side="left")
+        ttk.Button(top, text="OK", width=4, command=self.set_saldo).pack(side="left", padx=2)
+        ttk.Label(top, text="(tylko gdy wyciąg jest starszy niż kilka dni)", foreground="#777").pack(side="left", padx=4)
 
-        self.map_frame = ttk.LabelFrame(self, text="Kolumny wyciągu (* wymagane)", padding=8)
-        self.map_frame.pack(fill="x", padx=8)
-        for r, (key, label) in enumerate(FIELDS):
-            ttk.Label(self.map_frame, text=label, width=20).grid(row=r, column=0, sticky="w", pady=2)
-            cb = ttk.Combobox(self.map_frame, textvariable=self.vars[key], state="readonly", width=50)
-            cb.grid(row=r, column=1, sticky="w", pady=2)
-            self.combos[key] = cb
+        self.status = ttk.Label(self, text="", padding=(8, 0))
+        self.status.pack(fill="x")
 
-        bar = ttk.Frame(self, padding=8)
-        bar.pack(fill="x")
-        self.run_btn = ttk.Button(bar, text="Uruchom analizę", command=self.run, state="disabled")
-        self.run_btn.pack(side="left")
-        self.excel_btn = ttk.Button(bar, text="Excel ▾", command=self.excel_menu, state="disabled")
-        self.excel_btn.pack(side="left", padx=(8, 0))
-        self.pdf_btn = ttk.Button(bar, text="PDF zabiegów ▾", command=self.pdf_menu, state="disabled")
-        self.pdf_btn.pack(side="left", padx=(4, 0))
-        self.status = ttk.Label(bar, text="")
-        self.status.pack(side="left", padx=8)
-        self.outputs: dict = {}
+        nb = ttk.Notebook(self)
+        nb.pack(fill="both", expand=True, padx=8, pady=6)
+        # --- zakladka 1: co teraz
+        t1 = ttk.Frame(nb, padding=6)
+        nb.add(t1, text="Co teraz")
+        self.plan_txt = tk.Text(t1, height=12, wrap="word", font=("Segoe UI", 11), relief="flat", background="#f7f7f5")
+        self.plan_txt.pack(fill="x")
+        ttk.Label(t1, text="Sprawy do załatwienia (od największej kwoty):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(8, 2))
+        cols = ("sprawa", "co", "rocznie", "termin")
+        self.tree = ttk.Treeview(t1, columns=cols, show="headings", height=7, selectmode="browse")
+        for c, label, width in (("sprawa", "Sprawa", 520), ("co", "Co zrobić", 140), ("rocznie", "Zysk rocznie", 110), ("termin", "Termin", 100)):
+            self.tree.heading(c, text=label)
+            self.tree.column(c, width=width, anchor="w" if c in ("sprawa", "co") else "e")
+        self.tree.pack(fill="both", expand=True)
+        self.tree.bind("<Double-1>", lambda _e: self.open_card())
+        bar = ttk.Frame(t1)
+        bar.pack(fill="x", pady=4)
+        ttk.Button(bar, text="Karta: co powiedzieć (PDF)", command=self.open_card).pack(side="left")
+        ttk.Button(bar, text="✉ Pismo do wydruku", command=self.letter).pack(side="left", padx=4)
+        ttk.Button(bar, text="✓ Załatwione", command=lambda: self.mark(True)).pack(side="left", padx=(16, 4))
+        ttk.Button(bar, text="✗ Nie udało się", command=lambda: self.mark(False)).pack(side="left")
+        # --- zakladka 2: oplaty stale
+        t2 = ttk.Frame(nb, padding=6)
+        nb.add(t2, text="Opłaty stałe")
+        ttk.Label(t2, text="MUZ rozpoznał te opłaty sam. Jeśli kategoria jest zła — zaznacz wiersz i wybierz właściwą.",
+                  foreground="#555").pack(anchor="w")
+        self.tree2 = ttk.Treeview(t2, columns=("k", "kat", "kw", "st"), show="headings", height=12, selectmode="browse")
+        for c, label, width in (("k", "Komu płacisz", 420), ("kat", "Kategoria", 140), ("kw", "Ostatnio", 110), ("st", "", 140)):
+            self.tree2.heading(c, text=label)
+            self.tree2.column(c, width=width, anchor="e" if c == "kw" else "w")
+        self.tree2.pack(fill="both", expand=True)
+        bar2 = ttk.Frame(t2)
+        bar2.pack(fill="x", pady=4)
+        self.cat = tk.StringVar()
+        ttk.Combobox(bar2, textvariable=self.cat, values=zarzadca.CATEGORIES, state="readonly", width=16).pack(side="left")
+        ttk.Button(bar2, text="Ustaw kategorię", command=self.set_category).pack(side="left", padx=4)
+        ttk.Button(bar2, text="✓ Zgadza się", command=self.confirm_category).pack(side="left")
+        # --- zakladka 3: szczegoly
+        t3 = ttk.Frame(nb, padding=6)
+        nb.add(t3, text="Szczegóły")
+        self.details = tk.Text(t3, wrap="word", font=("Consolas", 10))
+        self.details.pack(fill="both", expand=True)
 
-        self.text = tk.Text(self, wrap="word", font=("Consolas", 10))
-        self.text.pack(fill="both", expand=True, padx=8, pady=8)
-        self.load_saved_mapping()
+        bottom = ttk.Frame(self, padding=8)
+        bottom.pack(fill="x")
+        self.excel_btn = ttk.Button(bottom, text="Excel ▾", command=self.excel_menu, state="disabled")
+        self.excel_btn.pack(side="left")
+        self.pdf_btn = ttk.Button(bottom, text="Przydział do wypłaty (PDF)", command=self.open_plan_pdf, state="disabled")
+        self.pdf_btn.pack(side="left", padx=4)
+        ttk.Button(bottom, text="Folder wyciągów", command=lambda: open_path(self._ensure(zarzadca.WYCIAGI))).pack(side="left", padx=(16, 4))
+        ttk.Button(bottom, text="Folder wyników", command=lambda: open_path(self._ensure(zarzadca.WYNIKI))).pack(side="left")
+        ttk.Button(bottom, text="Moje dane do pism…", command=self.person).pack(side="right")
 
-    def load_saved_mapping(self):
-        p = REPO / "mapowanie.json"
-        if p.exists():
-            try:
-                saved = json.loads(p.read_text(encoding="utf-8"))
-                for k in self.vars:
-                    self.vars[k].set(saved.get(k, ""))
-            except (OSError, ValueError):
-                pass
+    @staticmethod
+    def _ensure(p: Path) -> Path:
+        p.mkdir(parents=True, exist_ok=True)
+        return p
 
-    def choose(self):
-        start = REPO / "dane" if (REPO / "dane").is_dir() else REPO
-        f = filedialog.askopenfilename(parent=self, title="Wyciąg z banku", initialdir=str(start),
-                                       filetypes=[("Wyciągi i CSV MUZ", "*.csv *.txt *.sta *.mt940 *.940"), ("Wszystkie", "*.*")])
-        if not f:
-            return
-        self.path = Path(f)
-        self.file_label.config(text=str(self.path))
-        if self.path.suffix.lower() in (".sta", ".mt940", ".940"):
-            self.map_frame.pack_forget()
-            self.run_btn.config(state="normal")
-            self.status.config(text="MT940: mapowanie kolumn niepotrzebne")
-            return
-        if is_muz_csv(self.path):
-            self.map_frame.pack_forget()
-            self.det = None
-            self.run_btn.config(state="normal")
-            self.status.config(text="CSV MUZ: format własny, mapowanie niepotrzebne")
-            return
-        self.map_frame.pack(fill="x", padx=8, after=self.file_label.master)
+    # ---------------------------------------------------------------- przebieg
+    def refresh(self):
+        self.status.config(text="Liczę… (wyciągi, inflacja z GUS, opłaty, sprawy)")
+        threading.Thread(target=self._work, daemon=True).start()
+
+    def _work(self):
         try:
-            self.det = sniff(self.path)
-            self.columns = self.det.columns
-        except Exception as exc:  # noqa: BLE001 - pokazujemy uzytkownikowi, okno zostaje
-            messagebox.showerror("Nie rozpoznano pliku", str(exc), parent=self)
-            return
-        prof = ProfileStore(pipeline.FORMATS).get(self.det.fingerprint)
-        guess = prof["mapping"] if prof else self.det.mapping
-        options = [""] + [c for c in self.columns if c]
-        for key, cb in self.combos.items():
-            cb["values"] = options
-            self.vars[key].set(guess.get(key, "") if guess.get(key, "") in options else "")
-        self.run_btn.config(state="normal")
-        self.status.config(text=(f"Rozpoznany format: „{prof['name']}” — kliknij „Uruchom analizę”." if prof else
-                                 f"Nowy format („{self.det.suggested_name}”): kolumny dopasowane po zawartości — "
-                                 f"sprawdź i kliknij „Uruchom analizę”; format zostanie zapamiętany."))
-
-    # --- odnosniki: Excel i PDF ---------------------------------------------------------------
-    def open_file(self, path):
-        path = Path(path)
-        if not path.exists():
-            messagebox.showwarning("Brak pliku", f"Nie ma pliku {path}", parent=self)
-            return
-        try:
-            if sys.platform.startswith("win"):
-                os.startfile(str(path))  # domyslny program: Excel dla .csv, przegladarka PDF dla .pdf
-            else:
-                subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(path)])
-        except OSError as exc:
-            messagebox.showerror("Nie udało się otworzyć", f"{path}\n{exc}", parent=self)
-
-    def _popup(self, button, items):
-        m = tk.Menu(self, tearoff=0)
-        for label, cmd in items:
-            m.add_command(label=label, command=cmd)
-        m.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
-
-    def excel_menu(self):
-        ex = self.outputs.get("excel", {})
-        items = [("Lista decyzji (zabiegi, kwoty, terminy)", lambda: self.open_file(ex["decyzje"])),
-                 ("Wszystkie transakcje (CSV MUZ)", lambda: self.open_file(ex["transakcje"]))]
-        items.append(("Gotówka — ręczne wpisy (dane\\gotowka.csv)", self.open_cash))
-        self._popup(self.excel_btn, items)
-
-    def open_cash(self):
-        from .adapter.muz_csv import write_template
-        p = REPO / "dane" / "gotowka.csv"
-        if not p.exists():
-            write_template(p)
-            messagebox.showinfo("Nowy plik", "Utworzono dane\\gotowka.csv. Kwota ujemna = wydatek (np. -45,50), "
-                                "data RRRR-MM-DD. Zapisz w Excelu (format CSV) — MUZ dołącza ten plik do każdej analizy.", parent=self)
-        self.open_file(p)
-
-    def pdf_menu(self):
-        pdfs = self.outputs.get("pdfs") or []
-        if not pdfs:
-            messagebox.showinfo("Brak PDF", self.outputs.get("pdf_note") or "Brak zabiegów do wydruku.", parent=self)
-            return
-        self._popup(self.pdf_btn, [(title, lambda p=p: self.open_file(p)) for title, p in pdfs])
-
-    def run(self):
-        if self.path is None:
-            return
-        mapping_path = None
-        if self.path.suffix.lower() not in (".sta", ".mt940", ".940") and not is_muz_csv(self.path):
-            mapping = {k: v.get() for k, v in self.vars.items() if v.get()}
-            missing = [label for key, label in FIELDS if key in REQUIRED and key not in mapping]
-            if "amount" not in mapping and not ("debit" in mapping and "credit" in mapping):
-                missing.append("Kwota (albo Obciążenia + Uznania)")
-            if missing:
-                messagebox.showwarning("Brak kolumn", "Wybierz kolumny: " + ", ".join(missing), parent=self)
-                return
-            if getattr(self, "det", None) is not None:
-                if self.det.mapping.get("date_format") and mapping.get("date") == self.det.mapping.get("date"):
-                    mapping["date_format"] = self.det.mapping["date_format"]
-                ProfileStore(pipeline.FORMATS).learn(self.det, self.path.name, mapping=mapping)
-            mapping_path = REPO / "mapowanie.json"
-            mapping_path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False), encoding="utf-8")
-        self.run_btn.config(state="disabled")
-        self.status.config(text="Liczę…")
-        threading.Thread(target=self._work, args=(mapping_path,), daemon=True).start()
-
-    def _work(self, mapping_path):
-        out = REPO / "wyniki"
-        try:
-            cpi = REPO / "dane" / "cpi.csv"
-            cpi_p = cpi if cpi.exists() else None
-            cash = REPO / "dane" / "gotowka.csv"
-            inputs = [self.path] + ([cash] if cash.exists() and cash.resolve() != self.path.resolve() else [])
-            pipeline.run(inputs, mapping_path, out, cpi_path=cpi_p)
-            report = (out / "raport_etap0.md").read_text(encoding="utf-8")
-            try:  # decyzje na gorze raportu; profil/umowy opcjonalne (profil.json, umowy.json obok run.bat)
-                from datetime import date as _d
-                prof, con = REPO / "profil.json", REPO / "umowy.json"
-                self.outputs = pipeline.decide(inputs, mapping_path, out, today=_d.today(), cpi_path=cpi_p,
-                                               profile_path=prof if prof.exists() else None,
-                                               contracts_path=con if con.exists() else None)
-                report = (out / "decyzje.md").read_text(encoding="utf-8") + "\n\n" + report
-            except Exception:  # noqa: BLE001 - decyzje nie blokuja raportu
-                (out / "blad_decyzje.txt").write_text(traceback.format_exc(), encoding="utf-8")
-            self.after(0, self._done, report, None)
+            w = zarzadca.run(date.today(), self.ust)
+            self.after(0, self._show, w, None)
         except Exception as exc:  # noqa: BLE001
-            out.mkdir(exist_ok=True)
-            (out / "blad.txt").write_text(traceback.format_exc(), encoding="utf-8")
-            self.after(0, self._done, None, exc)
+            zarzadca.WYNIKI.mkdir(exist_ok=True)
+            (zarzadca.WYNIKI / "blad.txt").write_text(traceback.format_exc(), encoding="utf-8")
+            self.after(0, self._show, None, exc)
 
-    def _done(self, report, exc):
-        self.run_btn.config(state="normal")
-        self.excel_btn.config(state="normal" if self.outputs.get("excel") else "disabled")
-        self.pdf_btn.config(state="normal" if self.outputs.get("excel") else "disabled")
-        self.text.delete("1.0", "end")
+    def _show(self, w, exc):
+        self.plan_txt.delete("1.0", "end")
+        self.tree.delete(*self.tree.get_children())
+        self.tree2.delete(*self.tree2.get_children())
         if exc is not None:
-            self.status.config(text="Błąd — szczegóły w wyniki\\blad.txt")
-            self.text.insert("end", f"Błąd: {exc}\n\nPełny ślad: {REPO / 'wyniki' / 'blad.txt'}")
-            messagebox.showerror("Błąd analizy", str(exc), parent=self)
+            self.status.config(text=f"Błąd: {exc} — szczegóły w wyniki\\blad.txt")
             return
-        self.status.config(text=f"Gotowe. Raport: {REPO / 'wyniki' / 'raport_etap0.md'}")
-        self.text.insert("end", plain_text(report))
+        self.w = w
+        if w.plan is None:
+            self.plan_txt.insert("end", "Dodaj wyciąg z banku (przycisk „➕ Dodaj wyciągi…”: plik CSV lub MT940 pobrany "
+                                        "z bankowości internetowej) albo skopiuj historię ze strony banku i użyj „Wklej…”.\n\n"
+                                 + "\n".join(w.problemy))
+            self.status.config(text="Czekam na dane.")
+            return
+        plain = render_cycle(w.plan).replace("**", "").replace("## ", "").replace("_", "")
+        self.plan_txt.insert("end", plain)
+        for s in w.sprawy:
+            self.tree.insert("", "end", iid=s.id, values=(s.tytul, ACTION_LABEL.get(s.akcja, s.akcja), zl(s.rocznie_gr),
+                                                          s.termin.strftime("%d.%m.%Y")))
+        for o in w.oplaty:
+            st = "potwierdzona" if o["potwierdzona"] else ("rozpoznana" if o["rozpoznana"] else "ustawiona")
+            self.tree2.insert("", "end", iid=o["kontrahent"], values=(o["kontrahent"], o["kategoria"], zl(o["kwota_gr"]), st))
+        files = ", ".join(f"{p['plik']} ({p['format']})" for p in w.pliki)
+        self.details.delete("1.0", "end")
+        self.details.insert("end", f"Wczytane: {files}\nDane do: {w.dane_do}\n\n" +
+                            ("Uwagi:\n- " + "\n- ".join(w.problemy) + "\n\n" if w.problemy else "") + w.raport)
+        self.excel_btn.config(state="normal")
+        self.pdf_btn.config(state="normal" if w.pdf_przydzial else "disabled")
+        n = len(w.sprawy)
+        self.status.config(text=f"Gotowe: {len(w.pliki)} plik(ów), dane do {w.dane_do:%d.%m.%Y}; "
+                                f"spraw do załatwienia: {n}" + (f"; uwagi: {len(w.problemy)} (zakładka Szczegóły)" if w.problemy else ""))
+
+    # ---------------------------------------------------------------- dane
+    def add_statements(self):
+        fs = filedialog.askopenfilenames(parent=self, title="Wyciągi z banku (można zaznaczyć kilka)",
+                                         filetypes=[("Wyciągi", "*.csv *.txt *.sta *.mt940 *.940"), ("Wszystkie", "*.*")])
+        if fs:
+            zarzadca.add_files(fs)
+            self.refresh()
+
+    def paste(self):
+        win = tk.Toplevel(self)
+        win.title("Wklej historię")
+        win.geometry("760x520")
+        ttk.Label(win, text="Skopiuj historię ze strony banku, z aplikacji, z SMS-a albo z Excela i wklej tutaj (Ctrl+V):",
+                  padding=6).pack(anchor="w")
+        txt = tk.Text(win, height=12, wrap="none")
+        txt.pack(fill="both", expand=True, padx=6)
+        prev = ttk.Treeview(win, columns=("d", "k", "o"), show="headings", height=8)
+        for c, label, width in (("d", "Data", 100), ("k", "Kwota", 100), ("o", "Opis", 500)):
+            prev.heading(c, text=label)
+            prev.column(c, width=width, anchor="e" if c == "k" else "w")
+        prev.pack(fill="both", expand=True, padx=6, pady=4)
+        info = ttk.Label(win, text="", padding=6)
+        info.pack(anchor="w")
+        state = {"rows": []}
+
+        def recognize(_e=None):
+            rows, skipped = wklej.parse(txt.get("1.0", "end"), date.today())
+            state["rows"] = rows
+            prev.delete(*prev.get_children())
+            for r in rows:
+                prev.insert("", "end", values=(r.date.strftime("%d.%m.%Y"), zl(r.amount_gr), r.text))
+            info.config(text=f"Rozpoznano {len(rows)} transakcji" + (f"; pominięto {skipped} bez daty" if skipped else "")
+                             + ". Sprawdź i kliknij „Zapisz”.")
+
+        def save():
+            if not state["rows"]:
+                recognize()
+            n = wklej.append(state["rows"], zarzadca.DANE / "wklejone.csv")
+            win.destroy()
+            messagebox.showinfo("Zapisano", f"Dopisano {n} nowych transakcji (powtórzone pominięte).", parent=self)
+            self.refresh()
+
+        txt.bind("<<Paste>>", lambda _e: self.after(50, recognize))
+        b = ttk.Frame(win, padding=6)
+        b.pack(fill="x")
+        ttk.Button(b, text="Rozpoznaj", command=recognize).pack(side="left")
+        ttk.Button(b, text="Zapisz", command=save).pack(side="left", padx=4)
+        ttk.Button(b, text="Anuluj", command=win.destroy).pack(side="right")
+
+    def set_saldo(self):
+        raw = self.saldo.get().strip().replace(" ", "").replace(",", ".")
+        try:
+            self.ust.set_saldo(float(raw) if raw else None, date.today())
+        except ValueError:
+            messagebox.showwarning("Saldo", "Wpisz kwotę, np. 3250,40", parent=self)
+            return
+        self.refresh()
+
+    def person(self):
+        o = self.ust.d.setdefault("osoba", {})
+        for key, label in (("imie_nazwisko", "Imię i nazwisko"), ("adres", "Adres (ulica, kod, miasto)"),
+                           ("miejscowosc", "Miejscowość (do daty pisma)")):
+            v = simpledialog.askstring("Dane do pism", label, initialvalue=o.get(key, ""), parent=self)
+            if v is None:
+                return
+            o[key] = v.strip()
+        self.ust.save()
+
+    # ---------------------------------------------------------------- sprawy
+    def _selected(self):
+        sel = self.tree.selection()
+        if not sel or self.w is None:
+            messagebox.showinfo("Sprawy", "Zaznacz sprawę na liście.", parent=self)
+            return None
+        return next(s for s in self.w.sprawy if s.id == sel[0])
+
+    def open_card(self):
+        s = self._selected()
+        if s is None:
+            return
+        if s.pdf:
+            open_path(s.pdf)
+        else:
+            messagebox.showinfo(s.tytul, (self.w.pdf_note or "") + "\n\nKarta jest w zakładce Szczegóły.", parent=self)
+
+    def letter(self):
+        s = self._selected()
+        if s is None:
+            return
+        if not self.ust.d.get("osoba", {}).get("imie_nazwisko"):
+            if messagebox.askyesno("Dane do pism", "Wpisać raz imię, nazwisko i adres? (Bez nich w piśmie zostaną puste "
+                                                   "miejsca do wypełnienia długopisem.)", parent=self):
+                self.person()
+        try:
+            open_path(zarzadca.letter_pdf(s, self.ust, date.today(), zarzadca.WYNIKI / "pisma"))
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Pismo", str(exc), parent=self)
+
+    def mark(self, ok: bool):
+        s = self._selected()
+        if s is None:
+            return
+        price = None
+        if ok and s.akcja in ("negocjowac", "zmienic"):
+            v = simpledialog.askstring("Załatwione", f"{s.kontrahent}: nowa cena miesięcznie (zł)? Możesz zostawić puste.",
+                                       parent=self)
+            try:
+                price = float(v.replace(",", ".")) if v and v.strip() else None
+            except ValueError:
+                price = None
+        self.ust.done(s.id, s.kontrahent, s.akcja, "udalo_sie" if ok else "nie_udalo_sie", price, date.today())
+        if not ok and s.akcja == "negocjowac":
+            messagebox.showinfo("Zapamiętane", "Następnym razem MUZ zaproponuje zmianę oferty albo wypowiedzenie.", parent=self)
+        self.refresh()
+
+    # ---------------------------------------------------------------- oplaty stale
+    def _sel2(self):
+        sel = self.tree2.selection()
+        if not sel:
+            messagebox.showinfo("Opłaty stałe", "Zaznacz opłatę na liście.", parent=self)
+            return None
+        return sel[0]
+
+    def set_category(self):
+        k = self._sel2()
+        if k is None or not self.cat.get():
+            return
+        self.ust.d["kategorie"][k] = self.cat.get()
+        self.ust.d["potwierdzone"][k] = True
+        self.ust.save()
+        self.refresh()
+
+    def confirm_category(self):
+        k = self._sel2()
+        if k is None:
+            return
+        self.ust.d["potwierdzone"][k] = True
+        self.ust.save()
+        self.refresh()
+
+    # ---------------------------------------------------------------- pliki
+    def excel_menu(self):
+        if self.w is None:
+            return
+        m = tk.Menu(self, tearoff=0)
+        m.add_command(label="Lista spraw i przydziału", command=lambda: open_path(self.w.excel["decyzje"]))
+        m.add_command(label="Wszystkie transakcje", command=lambda: open_path(self.w.excel["transakcje"]))
+        m.tk_popup(self.excel_btn.winfo_rootx(), self.excel_btn.winfo_rooty() - 50)
+
+    def open_plan_pdf(self):
+        if self.w and self.w.pdf_przydzial:
+            open_path(self.w.pdf_przydzial)
 
 
-def main():
-    App().mainloop()
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv
+    App(add=[a for a in args if Path(a).is_file()]).mainloop()
 
 
 if __name__ == "__main__":

@@ -4,6 +4,21 @@ Lokalny, audytowalny agent wykonawczy oparty na TIMDR: sygnał (Finance-Core) �
 
 Stan: prototyp etapów 0–1. Etap 0 (tylko odczyt) działa na wyciągach z pliku. Etap 1 tworzy plany w kolejce; wykonanie wymaga podpisanego zatwierdzenia. Nic nie przenosi pieniędzy: przelew kończy się SCA w aplikacji banku.
 
+## Jak używać — bez programowania i bez wypełniania rubryk
+
+1. **Dwuklik na `run.bat`.** Za pierwszym razem sam doinstaluje, czego potrzebuje (wymagany jest tylko Python).
+2. **Daj mu wyciąg** — jedno z trzech:
+   - przeciągnij plik(i) wyciągu z banku (CSV lub MT940) na `run.bat`,
+   - albo w oknie „➕ Dodaj wyciągi…” (można zaznaczyć kilka naraz),
+   - albo skopiuj historię ze strony banku, z aplikacji, z SMS-a czy z Excela i wklej przez „Wklej…”.
+   MUZ sam rozpoznaje format banku (i zapamiętuje go pod nazwą banku), daty, kwoty, opłaty stałe i ich kategorie, dzień wypłaty i debet. Inflację pobiera sam z GUS.
+3. **Czytaj zakładkę „Co teraz”**: ile zarezerwować na opłaty do wypłaty, ile masz na życie dziennie, ile odłożyć, co nadpłacić — i lista spraw do załatwienia z zyskiem rocznie i terminem.
+4. **Sprawa = jeden klik**: „Karta: co powiedzieć (PDF)” — gotowa rozmowa z celem ceny i granicą zgody; „Pismo do wydruku” — gotowe pismo; po wszystkim „✓ Załatwione” albo „✗ Nie udało się”. MUZ pamięta wynik i następnym razem proponuje kolejny krok (np. zmianę oferty albo wypowiedzenie).
+
+Jedyne pole do wpisania: **„Saldo teraz”** — tylko gdy wyciąg jest starszy niż kilka dni. Imię i adres do pism wpisujesz raz (MUZ zapyta przy pierwszym piśmie). Jeśli MUZ źle rozpoznał kategorię opłaty — zakładka „Opłaty stałe”, zaznacz i wybierz z listy.
+
+Nowe wyciągi wrzucasz do folderu `wyciagi/` (przycisk „Folder wyciągów”) — przy każdym otwarciu okno liczy wszystko od nowa. Wyniki (PDF-y, lista dla Excela) są w `wyniki/`. MUZ niczego nie wysyła i nie przenosi pieniędzy.
+
 ## Czy MUZ działa? Wyniki badań
 
 Trzy pre-rejestrowane testy (każdy zamrożony przed uruchomieniem, uruchomiony raz). Pełny opis: [docs/BADANIA.md](docs/BADANIA.md).
@@ -30,9 +45,9 @@ python -m muz badanie --n 400 --seed 20260929 --scen S0,S1,S2 --out wyniki/badan
 
 Kod: [muz/badania/petla.py](muz/badania/petla.py) (kopia 1:1 zamrożonego pliku, sprawdzana testem). Zarządca „MUZ” w badaniu to model badawczy polityki — nie jest jeszcze przeniesiony do `muz/mini_ai` ani `prereg/muz_decision_*.json`.
 
-## Szybki start (etap 0)
+## Wiersz poleceń (dla programistów)
 
-Dwuklik na `run.bat` otwiera okno: wybierz wyciąg (CSV albo MT940), sprawdź dopasowanie kolumn i kliknij „Uruchom analizę”. Mapowanie zapisuje się w `mapowanie.json`, a raport pokazuje się w oknie i w `wyniki/raport_etap0.md`. Błąd zostaje w oknie, a pełny ślad w `wyniki/blad.txt`.
+Dwuklik na `run.bat` wystarcza; poniższe polecenia są dla automatyzacji i testów.
 
 Z konsoli:
 
@@ -44,7 +59,7 @@ python -m muz verify --log wyniki/audit.jsonl
 
 Raport: `wyniki/raport_etap0.md`. Dane użytkownika (`*.csv`, `mapowanie.json`, `wyniki/`, `.muz_salt`) są w `.gitignore`.
 
-## Dane: dowolny wyciąg CSV i własny CSV MUZ
+### Dane: dowolny wyciąg CSV i własny CSV MUZ
 
 Nikt z zewnątrz nie dopasowuje formatu — robi to MUZ lokalnie, po **zawartości** kolumn: daty (≥ 90% wierszy), kwota i saldo (saldo zmienia się dokładnie o kwotę), osobne kolumny obciążeń i uznań (wzajemnie się wykluczają), waluta, kontrahent i opis. Nazwy kolumn tylko rozstrzygają remisy. Po pierwszym imporcie format zapisuje się w `formaty.json` pod odciskiem nagłówka i **sam nadaje sobie nazwę** (z nazwy banku w preambule wyciągu, a gdy jej brak — z nazwy pliku). Następny wyciąg z tego banku wczytuje się bez pytań.
 
@@ -57,7 +72,7 @@ python -m muz szablon --out gotowka.csv                            # pusty CSV M
 
 **CSV MUZ** (`data;kwota;waluta;kontrahent;opis;kategoria;saldo;zrodlo;id`, separator `;`, przecinek dziesiętny, UTF-8 z BOM — otwiera się w polskim Excelu). Kwota ujemna = wydatek. Tu dopisuje się gotówkę i rachunki spoza banku; kategoria jest dowolna. Plik CSV MUZ można podać wszędzie tam, gdzie wyciąg (`--in`), także w oknie `run.bat`. Wyciągi PDF: jeszcze nie.
 
-## Decyzje: co zrobić, ile i do kiedy
+### Decyzje: co zrobić, ile i do kiedy
 
 ```powershell
 python -m muz decyzje --in wyciag.csv --in gotowka.csv --profile profil.json --contracts umowy.json --out wyniki
@@ -67,11 +82,6 @@ Wynik `wyniki/decyzje.md` (w oknie `run.bat` — na górze raportu):
 
 1. **Do następnej wypłaty** — reguła z badania MUZ-SIM: rezerwa na opłaty, które zejdą przed wypłatą (według ich kalendarza), kwota na życie na dzień i tydzień, ile odłożyć na fundusz wydatków nieregularnych i bufor, ile nadpłacić na najdroższy dług. Przy długu lub braku zapasu — 80% zwykłych wydatków (poniżej 75% gospodarstwa w symulacji się łamały). Saldo, oszczędności i długi — w `profil.json` (wzór: `profil_przyklad.json`).
 2. **Karty działania dla umów** — gdy opłata rośnie istotnie ponad inflację: cel ceny (poprzednia), górna granica zgody (poprzednia + inflacja), plan B, termin (z okresu wypowiedzenia), co powiedzieć w dziale utrzymania klienta, na co się nie zgadzać, co zapisać. Negocjację prowadzisz Ty; pismo zamiast rozmowy przygotowuje `propose` (z Twoim zatwierdzeniem).
-
-W oknie `run.bat` po analizie działają dwa przyciski:
-
-- **Excel ▾** — lista decyzji (`wyniki/decyzje.csv`: zabieg, kwoty, cel, granica, rocznie, termin, plik PDF), wszystkie transakcje w CSV MUZ (`wyniki/transakcje_muz.csv`) i plik gotówki `dane/gotowka.csv` (tworzy się przy pierwszym kliknięciu; MUZ dołącza go do każdej analizy).
-- **PDF zabiegów ▾** — lista PDF podpisanych tytułem zabiegu, np. „Negocjuj cenę: ORANGE POLSKA — cel 89,00 zł, zgoda najwyżej do 92,56 zł”, plus „Przydział do wypłaty”. Tytuł jest nagłówkiem i tytułem dokumentu; pliki w `wyniki/pdf/`. PDF wymaga `pip install reportlab`.
 
 MUZ niczego nie wykonuje sam i nie przenosi pieniędzy.
 

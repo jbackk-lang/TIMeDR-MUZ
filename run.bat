@@ -1,29 +1,21 @@
 @echo off
-REM TIMeDR-MUZ etap 0 - tylko odczyt.
-REM Dwuklik: okno programu. Przeciagniecie pliku wyciagu na run.bat: przebieg w konsoli.
+REM MUZ - zarzadca budzetu. Dwuklik: okno. Przeciagniecie plikow wyciagow na ten plik: okno z tymi plikami.
 setlocal
 cd /d "%~dp0"
 
 set PY=python
 where python >nul 2>nul || set PY=py
 
-if "%~1"=="" (
-  echo Uruchamiam okno TIMeDR-MUZ, to moze potrwac kilka sekund...
-  %PY% -m muz.gui
-  if errorlevel 1 (
-    echo.
-    echo Okno programu nie uruchomilo sie - komunikat jest powyzej.
-    pause
-  )
-  goto :eof
+%PY% -c "import numpy, reportlab" >nul 2>nul
+if errorlevel 1 (
+  echo Pierwsze uruchomienie: instaluje potrzebne biblioteki - chwila...
+  %PY% -m pip install --user --quiet numpy reportlab
 )
 
-if not exist "mapowanie.json" (
-  echo Brak pliku mapowanie.json. Uruchom run.bat dwuklikiem, wybierz wyciag i kolumny w oknie.
+echo Uruchamiam okno MUZ...
+%PY% -m muz.gui %*
+if errorlevel 1 (
+  echo.
+  echo Okno programu nie uruchomilo sie - komunikat jest powyzej.
   pause
-  goto :eof
 )
-%PY% -m muz run --in "%~1" --mapping mapowanie.json --out wyniki
-echo.
-if errorlevel 1 (echo Przebieg zakonczyl sie bledem - komunikat jest powyzej.) else (echo Gotowe. Raport: %CD%\wyniki\raport_etap0.md)
-pause

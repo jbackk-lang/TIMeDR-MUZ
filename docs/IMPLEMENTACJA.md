@@ -183,3 +183,15 @@ Na etapie 0 nie ma etykiet (decyzji użytkownika), więc mini-AI uczy się na **
 - `muz/decisions.py` — przydział do następnej wypłaty (`cycle_plan`: dni wypłat z wpływów ≥ 50% największego z 90 dni, opłaty stałe = strumienie miesięczne z medianą dnia, fundusz = 80. percentyl sum 90-dniowych dużych wydatków spoza strumieni, potrzeba = średnia dzienna drobnych wydatków z 90 dni) i karty umów (`contract_decisions`: ta sama polityka i weryfikacja co etap 1; na listę dla człowieka trafiają też propozycje wstrzymane w bramce tylko z powodu wieku danych lub brakujących pól umowy — z ostrzeżeniem).
 - CLI: `import`, `szablon`, `formaty`, `decyzje`; `pipeline.decide()`; GUI: rozpoznany format w pasku stanu, decyzje nad raportem.
 - Testy: `tests/test_autodetect_muzcsv.py` (4 syntetyczne formaty: preambuła i cp1250, angielski i odwrócona kolejność, obciążenia/uznania, nazwy kolumn bez znaczenia), `tests/test_decisions.py`.
+
+
+## 13. Okno zarządcy: bez wpisywania
+
+Zasada: użytkownik nie programuje i nie wypełnia rubryk. Wpisuje tylko to, czego nie ma w żadnym pliku (saldo teraz — opcjonalnie; imię i adres — raz, przy pierwszym piśmie).
+
+- `muz/zarzadca.py` — jeden przebieg: wszystkie pliki z `wyciagi/` + `dane/wklejone.csv` + `dane/gotowka.csv` (każdy osobno; zły plik trafia na listę uwag), CPI odświeżane z GUS co 35 dni (bez sieci — ostatni plik; ostatnie CPI przenoszone na maks. 3 miesiące, zanim GUS opublikuje nowe), rozpoznanie opłat, przydział, sprawy bez tych już załatwionych, PDF-y, lista dla Excela, dziennik audytu.
+- `muz/rozpoznanie.py` — kategorie po słowach kluczowych w nazwie kontrahenta i tytułach (kategorie z prereg v0.3), debet z salda. Rozpoznanie zastępuje ręczne `umowy.json` dla listy spraw człowieka; do pism przez bramkę (`propose`/`approve`) nadal idą tylko umowy potwierdzone (`confirmed_by_user`) — okno potwierdza jednym kliknięciem.
+- `muz/wklej.py` — wklejony tekst: tabela z tabulatorami (samodopasowanie kolumn) albo tekst w liniach (data + kwota + opis w jednej lub kilku liniach, nagłówki dni, „dzisiaj/wczoraj”); bez znaku = wydatek, chyba że opis mówi o wpływie; powtórzone wklejenie nie dubluje.
+- `muz/ustawienia.py` — pamięć okna (`ustawienia.json`): saldo z datą, dane do pism, poprawki kategorii, potwierdzenia, wyniki spraw („nie udało się” podnosi licznik negocjacji → polityka proponuje zmianę oferty/wypowiedzenie).
+- `muz/gui.py` — zakładki „Co teraz”, „Opłaty stałe”, „Szczegóły”; przeciągnięcie plików na `run.bat` dodaje je do `wyciagi/`. Pismo z okna to szkic do wydruku, który użytkownik wysyła sam (puste pola do wypełnienia długopisem, gdy MUZ ich nie zna).
+- Testy: `tests/test_zarzadca.py` (kategorie, trzy style wklejania, pełny przebieg z folderu, „nie udało się” → zmiana oferty → „załatwione” znika, saldo z okna, pismo PDF).

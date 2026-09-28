@@ -160,6 +160,8 @@ def cycle_plan(records: list[LSFRecord], streams: list[Stream], *, today: date, 
     need_day = int(d90.mean()) if len(d90) else 0
     buffer_target = sum(o.amount_gr for o in obls)
 
+    savings = int(round(float(profile.get("oszczednosci_zl", 0)) * 100))
+
     with_bal = [r for r in records if r.balance_gr is not None]
     bal, bal_date = None, None
     if with_bal:
@@ -167,17 +169,16 @@ def cycle_plan(records: list[LSFRecord], streams: list[Stream], *, today: date, 
         bal, bal_date = rb.balance_gr, rb.date
     if profile.get("saldo_zl") is not None:
         bal, bal_date = int(round(float(profile["saldo_zl"]) * 100)), today
-    savings = int(round(float(profile.get("oszczednosci_zl", 0)) * 100))
-
     fund_gap = max(0, fund_target - savings)
     buf_gap = max(0, buffer_target - max(0, savings - fund_target))
-    mode = "wychodzenie z długu" if debts else ("brak zapasu" if fund_gap + buf_gap > 0 else "normalny")
+    covered = bal is not None and (bal - reserve - need_day * days) >= fund_gap + buf_gap   # zapas juz jest na koncie
+    mode = "wychodzenie z długu" if debts else ("brak zapasu" if fund_gap + buf_gap > 0 and not covered else "normalny")
     plan = CyclePlan(today, nxt, days, bal, bal_date, due, reserve, fund_target, buffer_target, savings, need_day, mode)
     if bal_date and (today - bal_date).days > 3:
         plan.notes.append(f"saldo z wyciągu z {bal_date.isoformat()} ({(today - bal_date).days} dni temu) — "
-                          f"wpisz aktualne saldo w profilu (saldo_zl), żeby przydział był dokładny")
+                          f"wpisz u góry okna, ile masz teraz na koncie, albo dodaj nowszy wyciąg")
     if bal is None:
-        plan.notes.append("wyciąg nie podaje salda — wpisz saldo w profilu (saldo_zl); poniżej tylko rezerwa i potrzeby")
+        plan.notes.append("wyciąg nie podaje salda — wpisz u góry okna, ile masz teraz na koncie; poniżej tylko rezerwa i potrzeby")
         return plan
     need = need_day * days
     target = int(0.80 * need) if mode != "normalny" else need
@@ -202,8 +203,11 @@ def cycle_plan(records: list[LSFRecord], streams: list[Stream], *, today: date, 
 
 def render_cycle(p: CyclePlan) -> str:
     L = [f"## Do następnej wypłaty: ok. {p.next_payday.strftime('%d.%m')} ({p.days} dni)", ""]
-    L.append(f"Tryb: **{p.mode}**." + (" Wydatki bieżące 80% zwykłych — w badaniu MUZ-SIM niżej niż 75% gospodarstwa się łamały." if p.mode != "normalny" else ""))
-    L.append("")
+    if p.mode == "wychodzenie z długu":
+        L += ["Tryb: **spłacanie długu**. Na życie 80% tego, co zwykle wydajesz — reszta idzie na zapas i dług. "
+              "Mniej niż 75% zwykle kończy się „pęknięciem” budżetu, więc niżej nie tniemy.", ""]
+    elif p.mode == "brak zapasu":
+        L += ["Tryb: **budowanie zapasu**. Na życie 80% tego, co zwykle wydajesz, reszta na zapas.", ""]
     if p.balance_gr is not None:
         L.append(f"Saldo: {zl(p.balance_gr)} (stan na {p.balance_date.isoformat()}).")
     L.append("")
@@ -216,8 +220,8 @@ def render_cycle(p: CyclePlan) -> str:
         L.append(f"2. Na życie potrzeba zwykle {zl(p.need_day_gr)} dziennie. Resztę policzę po wpisaniu salda.")
     else:
         if p.need_day_gr <= 0:
-            L.append("2. **Na życie:** w historii nie ma wydatków codziennych (karta, sklepy) — dopisz gotówkę "
-                     "w CSV MUZ (`python -m muz szablon`), inaczej przydział na życie jest nieznany.")
+            L.append("2. **Na życie:** w wyciągu nie ma codziennych zakupów (karta, sklepy). Jeśli płacisz gotówką — "
+                     "skopiuj wydatki skądkolwiek i użyj „Wklej…”; bez tego nie wiem, ile potrzebujesz na życie.")
         else:
             L.append(f"2. **Na życie: {zl(p.allowance_gr)}** = {zl(p.allowance_gr / max(p.days, 1))} dziennie, "
                      f"{zl(7 * p.allowance_gr / max(p.days, 1))} na tydzień (zwykle wydajesz {zl(p.need_day_gr)} dziennie).")
@@ -306,12 +310,12 @@ def render_card(k: dict) -> str:
               "", "**Nie zgadzaj się na:** dłuższe zobowiązanie bez obniżki, dodatkowe usługi w cenie „rabatu”, "
               "obniżkę tylko na 3 miesiące bez zapisu, co potem.",
               "**Zapisz:** data, imię rozmówcy, nowa cena i od kiedy; poproś o potwierdzenie mailem albo w aplikacji.",
-              "**Zamiast rozmowy — pismo:** `python -m muz propose …` przygotuje „prośbę o obniżkę” do Twojego zatwierdzenia."]
+              "**Zamiast rozmowy — pismo:** przycisk „Pismo do wydruku” przygotuje „prośbę o obniżkę”."]
     elif a == "anulowac":
         L += [f"### {card_title(k)}", "",
               f"**Dlaczego:** {zl(k['before_gr'])} → {zl(k['now_gr'])} ({pct}, inflacja {cpi}), negocjacje już były.",
               f"**Termin:** {k['deadline'].isoformat()} — {k['why_deadline']}.",
-              "**Jak:** pismo wypowiedzenia z szablonu (`python -m muz propose`, zatwierdzasz Ty); zachowaj potwierdzenie nadania."]
+              "**Jak:** przycisk „Pismo do wydruku” przygotuje wypowiedzenie; wyślij poleconym albo przez formularz firmy i zachowaj potwierdzenie."]
     elif a == "zmienic":
         L += [f"### {card_title(k)}", "",
               f"**Dlaczego:** {zl(k['before_gr'])} → {zl(k['now_gr'])} ({pct}, inflacja {cpi}), negocjacje już były. "
@@ -324,8 +328,7 @@ def render_card(k: dict) -> str:
         else:
             L.append(f"\n_Uwaga: {u}._")
     if not k["has_contract"]:
-        L.append("\n_Brak potwierdzonej umowy w umowy.json — dopisz kategorię, okres wypowiedzenia i koniec umowy, "
-                 "wtedy MUZ poda dokładny termin i plan B._")
+        L.append("\n_Okres wypowiedzenia nieznany — sprawdź go w umowie albo zapytaj w rozmowie._")
     return "\n".join(L) + "\n"
 
 
@@ -359,7 +362,7 @@ def render(plan: CyclePlan, cards: list[dict]) -> str:
         L.append(f"Do odzyskania rocznie: **{zl(total)}**. Kolejność: od największej kwoty.\n")
         L += [render_card(k) for k in cards]
     else:
-        L.append("Brak decyzji: żadna opłata nie rośnie istotnie ponad inflację (albo brak pliku CPI — `dane/cpi.csv`).\n")
+        L.append("Nic do załatwienia: żadna opłata nie rośnie istotnie ponad inflację.\n")
     return "\n".join(L)
 
 
