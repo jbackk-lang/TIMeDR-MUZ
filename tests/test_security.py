@@ -54,3 +54,37 @@ def test_aes_gcm_store_roundtrip_and_tamper(tmp_path):
         st.read_json(tmp_path / "lsf.bin")
     with pytest.raises(ValueError):
         SecureStore(b"k" * 16)
+
+
+def test_audit_anchor_detects_truncation_and_rewrite(tmp_path):
+    import json
+    from muz.core.common import canonical_json
+    log = tmp_path / "audit.jsonl"
+    for i in range(5):
+        audit.append(log, "e", {"kwota": i})
+    anchor = audit.export_anchor_n(log)
+    assert audit.verify_anchor(log, anchor)[0]
+    assert audit.verify_anchor(log, anchor.split(":", 1)[1])[0]          # kotwica sama jako hash
+    audit.append(log, "e", {"kwota": 99})                                # dluzszy dziennik nadal OK
+    assert audit.verify_anchor(log, anchor)[0]
+    lines = log.read_text(encoding="utf-8").splitlines()
+    # 1) obciecie ogona: verify() tego nie widzi, verify_anchor() tak
+    log.write_text("\n".join(lines[:3]) + "\n", encoding="utf-8")
+    assert audit.verify(log)[0]
+    assert not audit.verify_anchor(log, anchor)[0]
+    # 2) przepisanie calego lancucha ze zmieniona trescia
+    log.unlink()
+    for i in range(5):
+        audit.append(log, "e", {"kwota": i if i != 2 else 1000})
+    assert audit.verify(log)[0]
+    assert not audit.verify_anchor(log, anchor)[0]
+
+
+def test_atomic_write_no_leftovers_and_replaces(tmp_path):
+    from muz.core.atomic import atomic_write_bytes, atomic_write_text
+    p = tmp_path / "x.json"
+    atomic_write_text(p, "a")
+    atomic_write_text(p, "bb")
+    assert p.read_text() == "bb"
+    atomic_write_bytes(tmp_path / "k", b"k" * 32, private=True)
+    assert sorted(q.name for q in tmp_path.iterdir()) == ["k", "x.json"]   # brak plikow .tmp

@@ -9,6 +9,7 @@ import json
 import os
 import secrets
 from pathlib import Path
+from ..core.atomic import atomic_write_bytes
 
 try:  # pragma: no cover - zalezne od srodowiska
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -26,12 +27,7 @@ class EncryptionUnavailable(RuntimeError):
 
 def new_key(path) -> bytes:
     key = secrets.token_bytes(32)
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_bytes(key)
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass
+    atomic_write_bytes(path, key, private=True)
     return key
 
 
@@ -53,7 +49,8 @@ class SecureStore:
         return self._aead.decrypt(blob[4:16], blob[16:], associated)
 
     def write_json(self, path, obj) -> None:
-        Path(path).write_bytes(self.encrypt(json.dumps(obj, ensure_ascii=False).encode("utf-8"), Path(path).name.encode()))
+        atomic_write_bytes(path, self.encrypt(json.dumps(obj, ensure_ascii=False).encode("utf-8"),
+                                              Path(path).name.encode()), private=True)
 
     def read_json(self, path):
         return json.loads(self.decrypt(Path(path).read_bytes(), Path(path).name.encode()).decode("utf-8"))

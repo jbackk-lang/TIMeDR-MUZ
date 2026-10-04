@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from ..core.atomic import atomic_write_text
 
 from .._vendor.ai_core.timdr_ai_core import (ControlResult, Hypothesis, ProtocolCriteria, TestEvidence,
                                               TIMDRProtocol)
@@ -38,7 +39,7 @@ class ModelRegistry:
                 "p_value": result.p_value, "effect_size": result.effect_size,
                 "synthetic": synthetic, **(extra or {})}
         nodes = self._load() + [node]
-        self.path.write_text(json.dumps(nodes, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write_text(self.path, json.dumps(nodes, indent=2, ensure_ascii=False))
         return node
 
     def require_supported(self, artifact_path, allow_synthetic: bool = False) -> str:

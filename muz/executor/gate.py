@@ -15,6 +15,7 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from ..core.atomic import atomic_write_bytes
 
 from ..core.common import canonical_json, sha256_text
 from . import signing
@@ -49,7 +50,7 @@ def make_plan(*, claim: dict, proposal: dict, executor: str, target_host: str, c
 def set_pin(path, pin: str) -> None:
     salt = os.urandom(16)
     h = hashlib.scrypt(pin.encode(), salt=salt, n=2 ** 14, r=8, p=1)
-    Path(path).write_text(json.dumps({"salt": salt.hex(), "hash": h.hex()}), encoding="utf-8")
+    atomic_write_bytes(path, json.dumps({"salt": salt.hex(), "hash": h.hex()}).encode("utf-8"), private=True)
 
 
 def check_pin(path, pin: str) -> bool:

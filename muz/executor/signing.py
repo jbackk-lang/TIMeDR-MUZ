@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import secrets
 from pathlib import Path
+from ..core.atomic import atomic_write_bytes
 
 from . import ed25519_ref
 
@@ -21,14 +22,8 @@ except Exception:  # noqa: BLE001 - np. DLL zablokowana przez Device Guard
 
 
 def generate_key(path) -> bytes:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     secret = secrets.token_bytes(32)
-    path.write_bytes(secret)
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass
+    atomic_write_bytes(path, secret, private=True)
     return public_key(secret)
 
 

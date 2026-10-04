@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
+from .core.atomic import atomic_write_text
 
 
 class Ustawienia:
@@ -20,7 +21,7 @@ class Ustawienia:
             self.d.setdefault(k, v)
 
     def save(self):
-        self.path.write_text(json.dumps(self.d, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write_text(self.path, json.dumps(self.d, indent=2, ensure_ascii=False))
 
     # --- saldo --------------------------------------------------------------------------------
     def set_saldo(self, zl: float | None, today: date):

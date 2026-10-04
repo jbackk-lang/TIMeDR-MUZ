@@ -15,6 +15,7 @@ import json
 import secrets
 from datetime import date
 from pathlib import Path
+from .core.atomic import atomic_write_bytes
 
 from . import __version__, adapter, audit, meta, phases, signals
 from .ai_core.claims import verify_proposal
@@ -51,7 +52,7 @@ def local_salt(path: Path) -> bytes:
     if path.exists():
         return path.read_bytes()
     salt = secrets.token_bytes(32)
-    path.write_bytes(salt)
+    atomic_write_bytes(path, salt, private=True)
     return salt
 
 

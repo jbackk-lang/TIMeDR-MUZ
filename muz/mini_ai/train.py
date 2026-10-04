@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
+from ..core.atomic import atomic_write_text
 
 import numpy as np
 
@@ -172,6 +173,6 @@ def train_and_register(*, out_dir, th, th_sha, dec, dec_sha, cpi, cpi_sha, n_pac
         criteria=ProtocolCriteria(alpha=tr["alpha"], min_abs_effect_size=tr["min_effect_accuracy_over_majority"]),
         synthetic=True, extra={"karta": str((out / "karta.json").name)})
     if node["verdict"] == "SUPPORTED":
-        (out.parent / "aktywny.json").write_text(json.dumps({"wagi": str(weights.relative_to(out.parent)),
-                                                             "tryb": "cien"}, indent=2), encoding="utf-8")
+        atomic_write_text(out.parent / "aktywny.json", json.dumps({"wagi": str(weights.relative_to(out.parent)),
+                                                                   "tryb": "cien"}, indent=2))
     return {"card": card, "node": node}

@@ -120,8 +120,9 @@ Format QR: `NIP|PL|NRB|KWOTA|ODBIORCA|TYTUŁ|||`, kwota w groszach na 6 cyfrach 
 - **Podpis Ed25519** — `executor/signing.py` używa `cryptography`; gdy biblioteka jest niedostępna (np. zablokowana przez Device Guard), działa implementacja RFC 8032 w czystym Pythonie (`ed25519_ref.py`), sprawdzona wektorem z RFC i porównaniem z `cryptography`. Podpisywane jest `{plan_sha256, decision, expires_at}`.
 - **allowed_hosts** — każdy wykonawca i adapter deklaruje listę; `check_host()` wymaga `https` i dokładnej nazwy hosta.
 - **Brak sieci w warstwach decyzyjnych** — `no_network()` wokół sygnałów, META, faz, mini-AI i weryfikacji.
-- **AES-256-GCM** — `audit/store.py` (ten sam prymityw co Helix-Lock); bez `cryptography` magazyn odmawia zapisu jawnym tekstem.
-- **Dziennik JSONL z łańcuchem hashy** — `audit.append()`, `audit.verify()`, `export_anchor()` do wyniesienia hasha poza urządzenie.
+- **AES-256-GCM** — `audit/store.py` (ten sam prymityw co Helix-Lock); bez `cryptography` magazyn odmawia zapisu jawnym tekstem. **Uwaga:** `SecureStore` jest gotowym komponentem, ale na razie NIE jest podpięty do zapisu danych użytkownika (`ustawienia.json`, `wyniki/`) — te pliki są jawne, tylko poza repozytorium (`.gitignore`).
+- **Zapisy atomowe** — `core/atomic.py` (plik tymczasowy + fsync + `os.replace`; klucz, PIN i sól tworzone od razu z 0600; w Windows bit 0600 jest ignorowany).
+- **Dziennik JSONL z łańcuchem hashy** — `audit.append()`, `audit.verify()`, `export_anchor()`/`export_anchor_n()` do wyniesienia hasha poza urządzenie oraz `verify_anchor()`, które sprawdza dziennik względem kotwicy (samo `verify()` nie wykrywa obcięcia ogona ani przepisania całego łańcucha).
 - **PIN dla L2** — `hashlib.scrypt` z biblioteki standardowej.
 
 Ograniczenie prototypu: klucz bramki i klucz magazynu są plikami z uprawnieniami 0600, a nie wpisami w magazynie kluczy systemu (DPAPI, Keychain, Android Keystore), jak zakłada dokument.

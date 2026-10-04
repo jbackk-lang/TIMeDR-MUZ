@@ -21,6 +21,7 @@ import statistics
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
+from ..core.atomic import atomic_write_text
 
 from .csv_import import DATE_FORMATS, GUESS, _read_text, _strip_accents, parse_amount_gr
 
@@ -286,7 +287,7 @@ class ProfileStore:
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write_text(self.path, json.dumps(self.data, indent=2, ensure_ascii=False))
 
     def get(self, fp: str) -> dict | None:
         return self.data.get(fp)
